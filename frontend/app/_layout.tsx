@@ -23,6 +23,8 @@ export default function RootLayout() {
     "IBMPlexSans-Regular": require("../assets/fonts/IBMPlexSans-Regular.ttf"),
     "IBMPlexSans-Medium": require("../assets/fonts/IBMPlexSans-Medium.ttf"),
     "IBMPlexSans-SemiBold": require("../assets/fonts/IBMPlexSans-SemiBold.ttf"),
+    "PermanentMarker-Regular": require("../assets/fonts/PermanentMarker-Regular.ttf"),
+    "Bangers-Regular": require("../assets/fonts/Bangers-Regular.ttf"),
   });
 
   const ready = (iconsLoaded || iconsError) && (fontsLoaded || fontsError);

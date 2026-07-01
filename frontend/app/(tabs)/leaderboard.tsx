@@ -4,7 +4,7 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/context/AuthContext";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
@@ -64,7 +64,7 @@ export default function Leaderboard() {
                   <View key={p.user_id} style={styles.podiumItem}>
                     <View style={[styles.podiumAvatarRing, { borderColor: medal[idx] }]}>
                       <Avatar uri={p.picture} name={p.name} size={isFirst ? 64 : 52} />
-                      {isFirst && <Ionicons name="crown" size={20} color={medal[0]} style={styles.crown} />}
+                      {isFirst && <MaterialCommunityIcons name="crown" size={22} color={medal[0]} style={styles.crown} />}
                     </View>
                     <Text style={styles.podiumName} numberOfLines={1}>{p.name}</Text>
                     <Text style={styles.podiumScore}>{p.total_score}</Text>
@@ -131,8 +131,8 @@ const styles = StyleSheet.create({
   podiumWrap: { height: 260, paddingTop: spacing.md, overflow: "hidden" },
   headerTitle: {
     color: colors.onSurface,
-    fontFamily: fonts.displayBold,
-    fontSize: 30,
+    fontFamily: fonts.poster,
+    fontSize: 38,
     textAlign: "center",
     letterSpacing: 1,
   },

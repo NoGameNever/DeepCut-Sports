@@ -8,7 +8,7 @@ import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withTiming } from "
 import { api } from "@/src/api/client";
 import { sportName, timerOption, eraOption } from "@/src/constants/sports";
 import { useToast } from "@/src/components/Toast";
-import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
+import { colors, fonts, fontSize, radius, spacing, tints } from "@/src/theme/theme";
 
 const BASE_POINTS = 100;
 
@@ -251,8 +251,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.lg,
     minHeight: 60,
   },
-  optionCorrect: { borderColor: colors.success, backgroundColor: "rgba(0,208,132,0.12)" },
-  optionWrong: { borderColor: colors.error, backgroundColor: "rgba(255,59,48,0.12)" },
+  optionCorrect: { borderColor: colors.success, backgroundColor: tints.correct },
+  optionWrong: { borderColor: colors.error, backgroundColor: tints.wrong },
   optionText: { color: colors.onSurfaceSecondary, fontFamily: fonts.body, fontSize: fontSize.lg, flex: 1 },
   progressTrack: { height: 4, backgroundColor: colors.surfaceTertiary, borderRadius: 2, marginBottom: spacing.lg },
   progressFill: { height: 4, backgroundColor: colors.brandPrimary, borderRadius: 2 },

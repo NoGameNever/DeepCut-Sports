@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, ZoomIn } from "react-native-reanimated";
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/context/AuthContext";
-import { sportName } from "@/src/constants/sports";
+import { sportName, timerOption, eraOption } from "@/src/constants/sports";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
 export default function Results() {
@@ -41,6 +41,7 @@ export default function Results() {
 
   const perfect = accuracy === 100;
   const good = accuracy >= 60;
+  const multiplier = timerOption(timer).mult * eraOption(era).mult;
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.xl }]} testID="results-screen">
@@ -54,6 +55,11 @@ export default function Results() {
         <Animated.View entering={FadeInDown.delay(150)} style={styles.scoreBlock}>
           <Text style={styles.scoreValue} testID="results-score">{scoreN}</Text>
           <Text style={styles.scoreLabel}>POINTS EARNED</Text>
+        </Animated.View>
+
+        <Animated.View entering={FadeInDown.delay(200)} style={styles.multBadge} testID="results-multiplier">
+          <Ionicons name="flame" size={15} color={colors.brandPrimary} />
+          <Text style={styles.multBadgeText}>×{multiplier.toFixed(2)} multiplier applied</Text>
         </Animated.View>
       </View>
 
@@ -97,11 +103,22 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface, paddingHorizontal: spacing.xl },
   top: { alignItems: "center" },
   trophy: { width: 96, height: 96, borderRadius: 48, alignItems: "center", justifyContent: "center" },
-  title: { color: colors.onSurface, fontFamily: fonts.displayBold, fontSize: 44, letterSpacing: 1, marginTop: spacing.lg },
+  title: { color: colors.onSurface, fontFamily: fonts.poster, fontSize: 52, letterSpacing: 1, marginTop: spacing.lg },
   subtitle: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: fontSize.base, letterSpacing: 1 },
   scoreBlock: { alignItems: "center", marginTop: spacing.xl },
   scoreValue: { color: colors.brandPrimary, fontFamily: fonts.displayBold, fontSize: 72, lineHeight: 74 },
   scoreLabel: { color: colors.onSurfaceTertiary, fontFamily: fonts.bodyMedium, fontSize: fontSize.sm, letterSpacing: 1.5 },
+  multBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.brandTertiary,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.xs,
+    paddingHorizontal: spacing.md,
+    marginTop: spacing.md,
+  },
+  multBadgeText: { color: colors.onBrandTertiary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },
   statGrid: { flexDirection: "row", gap: spacing.md, marginTop: spacing.xxl },
   statCard: { flex: 1, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, paddingVertical: spacing.lg, alignItems: "center", gap: spacing.xs, minHeight: 78, justifyContent: "center" },
   statValue: { color: colors.onSurface, fontFamily: fonts.displayBold, fontSize: 26 },

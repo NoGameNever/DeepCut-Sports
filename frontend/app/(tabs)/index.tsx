@@ -56,6 +56,10 @@ export default function Home() {
   return (
     <View style={styles.container} testID="home-screen">
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
+        <View style={styles.brandRow}>
+          <Text style={styles.wordmark}>StatHead</Text>
+          <MaterialCommunityIcons name="spray" size={22} color={colors.brandPrimary} />
+        </View>
         <View style={styles.profileRow}>
           {user?.picture ? (
             <Image source={{ uri: user.picture }} style={styles.avatar} />
@@ -225,6 +229,8 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.md },
+  wordmark: { color: colors.onSurface, fontFamily: fonts.logo, fontSize: 30, letterSpacing: 0.5 },
   profileRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.lg },
   avatar: { width: 48, height: 48, borderRadius: radius.pill, backgroundColor: colors.surfaceTertiary },
   avatarFallback: { alignItems: "center", justifyContent: "center" },
@@ -243,10 +249,10 @@ const styles = StyleSheet.create({
   statValue: { color: colors.onSurface, fontFamily: fonts.displayBold, fontSize: 26 },
   statLabel: { color: colors.onSurfaceTertiary, fontFamily: fonts.bodyMedium, fontSize: 10, letterSpacing: 0.8, marginTop: 2 },
   sectionTitle: {
-    color: colors.onSurfaceSecondary,
-    fontFamily: fonts.bodySemiBold,
-    fontSize: fontSize.sm,
-    letterSpacing: 1.2,
+    color: colors.onSurface,
+    fontFamily: fonts.poster,
+    fontSize: 20,
+    letterSpacing: 0.5,
     marginBottom: spacing.md,
   },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },

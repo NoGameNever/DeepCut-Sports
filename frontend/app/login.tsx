@@ -4,14 +4,11 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { useAuth } from "@/src/context/AuthContext";
 import { useToast } from "@/src/components/Toast";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
-
-const HERO =
-  "https://images.pexels.com/photos/30566478/pexels-photo-30566478.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940";
 
 export default function Login() {
   const { user, signIn, signingIn, loading } = useAuth();
@@ -27,31 +24,32 @@ export default function Login() {
     try {
       await signIn();
     } catch {
-      toast.show("Sign in failed. Please try again.", "error");
+      toast.show("Sign in failed. Give it another shot.", "error");
     }
   };
 
   return (
     <View style={styles.container} testID="login-screen">
-      <Image source={{ uri: HERO }} style={StyleSheet.absoluteFill} contentFit="cover" />
-      <LinearGradient
-        colors={["rgba(15,17,21,0.2)", "rgba(15,17,21,0.75)", colors.surface]}
-        locations={[0, 0.55, 1]}
-        style={StyleSheet.absoluteFill}
+      <Image
+        source={require("../assets/images/stathead_hero.png")}
+        style={styles.hero}
+        contentFit="cover"
+        contentPosition="top"
       />
-      <View style={[styles.content, { paddingBottom: insets.bottom + spacing.xxl, paddingTop: insets.top }]}>
-        <Animated.View entering={FadeInUp.duration(500)}>
-          <View style={styles.badge}>
-            <MaterialCommunityIcons name="lightning-bolt" size={18} color={colors.brandPrimary} />
-            <Text style={styles.badgeText}>THE ULTIMATE SPORTS QUIZ</Text>
-          </View>
-          <Text style={styles.title}>TRIVIA{"\n"}BLITZ</Text>
-          <Text style={styles.subtitle}>
-            Race the clock across 7 sports. Answer fast, climb the global leaderboard.
-          </Text>
+      <LinearGradient
+        colors={["transparent", "rgba(11,13,15,0.6)", colors.surface]}
+        locations={[0, 0.62, 1]}
+        style={StyleSheet.absoluteFill}
+        pointerEvents="none"
+      />
+      <View style={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}>
+        <Animated.View entering={FadeInUp.duration(500)} style={styles.tagWrap}>
+          <View style={styles.dot} />
+          <Text style={styles.tagline}>GET YOUR HEAD IN THE GAME</Text>
+          <View style={styles.dot} />
         </Animated.View>
 
-        <Animated.View entering={FadeInUp.delay(150).duration(500)}>
+        <Animated.View entering={FadeInUp.delay(120).duration(500)}>
           <Pressable
             testID="google-signin-button"
             style={({ pressed }) => [styles.googleBtn, pressed && { opacity: 0.85 }]}
@@ -63,11 +61,11 @@ export default function Login() {
             ) : (
               <>
                 <Ionicons name="logo-google" size={20} color={colors.onSurfaceInverse} />
-                <Text style={styles.googleText}>Continue with Google</Text>
+                <Text style={styles.googleText}>Ball Up with Google</Text>
               </>
             )}
           </Pressable>
-          <Text style={styles.terms}>Sign in to save your scores & rankings</Text>
+          <Text style={styles.terms}>Sign in to bank your scores & climb the ranks</Text>
         </Animated.View>
       </View>
     </View>
@@ -76,32 +74,23 @@ export default function Login() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
-  content: { flex: 1, justifyContent: "flex-end", paddingHorizontal: spacing.xl, gap: spacing.xxl },
-  badge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.xs,
-    marginBottom: spacing.md,
+  hero: { width: "100%", height: "78%" },
+  content: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: spacing.xl,
+    gap: spacing.xl,
   },
-  badgeText: {
-    color: colors.brandPrimary,
-    fontFamily: fonts.bodySemiBold,
-    fontSize: fontSize.sm,
-    letterSpacing: 1.5,
-  },
-  title: {
+  tagWrap: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.md },
+  dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.brandPrimary },
+  tagline: {
     color: colors.onSurface,
-    fontFamily: fonts.displayBold,
-    fontSize: 76,
-    lineHeight: 70,
+    fontFamily: fonts.poster,
+    fontSize: 22,
     letterSpacing: 1,
-  },
-  subtitle: {
-    color: colors.onSurfaceSecondary,
-    fontFamily: fonts.body,
-    fontSize: fontSize.lg,
-    marginTop: spacing.md,
-    lineHeight: 24,
+    textAlign: "center",
   },
   googleBtn: {
     flexDirection: "row",
@@ -111,10 +100,12 @@ const styles = StyleSheet.create({
     backgroundColor: colors.surfaceInverse,
     height: 56,
     borderRadius: radius.pill,
+    borderWidth: 2,
+    borderColor: colors.brandPrimary,
   },
   googleText: { color: colors.onSurfaceInverse, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg },
   terms: {
-    color: colors.onSurfaceTertiary,
+    color: colors.onSurfaceSecondary,
     fontFamily: fonts.body,
     fontSize: fontSize.sm,
     textAlign: "center",

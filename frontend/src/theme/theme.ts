@@ -1,27 +1,35 @@
 export const colors = {
-  surface: "#0F1115",
+  surface: "#0B0D0F",
   onSurface: "#FFFFFF",
-  surfaceSecondary: "#1C1F26",
-  onSurfaceSecondary: "#A1A7B3",
-  surfaceTertiary: "#2A2E38",
-  onSurfaceTertiary: "#8A91A1",
+  surfaceSecondary: "#15181C",
+  onSurfaceSecondary: "#A0A6AE",
+  surfaceTertiary: "#232830",
+  onSurfaceTertiary: "#6E747C",
   surfaceInverse: "#FFFFFF",
-  onSurfaceInverse: "#0F1115",
-  brand: "#FF4D00",
-  brandPrimary: "#FF4D00",
-  onBrandPrimary: "#FFFFFF",
-  brandSecondary: "#CC3E00",
-  brandTertiary: "#401A0A",
-  onBrandTertiary: "#FF8C5A",
-  success: "#00D084",
-  onSuccess: "#003320",
-  warning: "#FFB300",
-  onWarning: "#4D3600",
-  error: "#FF3B30",
+  onSurfaceInverse: "#0B0D0F",
+  brand: "#35E06A",
+  brandPrimary: "#35E06A",
+  onBrandPrimary: "#05130A",
+  brandSecondary: "#46B1F5",
+  onBrandSecondary: "#05121D",
+  brandTertiary: "#123322",
+  onBrandTertiary: "#5EF29A",
+  success: "#35E06A",
+  onSuccess: "#05130A",
+  warning: "#FFC400",
+  onWarning: "#2E2400",
+  error: "#FF2D78",
   onError: "#FFFFFF",
-  border: "#2A2E38",
-  borderStrong: "#3D4351",
-  divider: "#1F232B",
+  border: "#262B31",
+  borderStrong: "#3A4048",
+  divider: "#1B1F24",
+};
+
+// rgba tints for answer states
+export const tints = {
+  correct: "rgba(53,224,106,0.15)",
+  wrong: "rgba(255,45,120,0.15)",
+  blue: "rgba(70,177,245,0.15)",
 };
 
 export const spacing = {
@@ -42,8 +50,10 @@ export const radius = {
 };
 
 export const fonts = {
+  logo: "PermanentMarker-Regular", // brand wordmark / brush headers
+  poster: "Bangers-Regular", // loud all-caps street headers
   display: "BarlowCondensed-SemiBold",
-  displayBold: "BarlowCondensed-Bold",
+  displayBold: "BarlowCondensed-Bold", // numbers, scores, timers
   body: "IBMPlexSans-Regular",
   bodyMedium: "IBMPlexSans-Medium",
   bodySemiBold: "IBMPlexSans-SemiBold",
