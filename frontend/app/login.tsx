@@ -31,7 +31,7 @@ export default function Login() {
   return (
     <View style={styles.container} testID="login-screen">
       <Image
-        source={require("../assets/images/stathead_hero.png")}
+        source={require("../assets/images/deepcut_hero.png")}
         style={styles.hero}
         contentFit="cover"
         contentPosition="top"
@@ -45,7 +45,7 @@ export default function Login() {
       <View style={[styles.content, { paddingBottom: insets.bottom + spacing.xxl }]}>
         <Animated.View entering={FadeInUp.duration(500)} style={styles.tagWrap}>
           <View style={styles.dot} />
-          <Text style={styles.tagline}>GET YOUR HEAD IN THE GAME</Text>
+          <Text style={styles.tagline}>TRIVIA FOR THE FANS WHO REMEMBER THE BACKUP</Text>
           <View style={styles.dot} />
         </Animated.View>
 
@@ -86,10 +86,11 @@ const styles = StyleSheet.create({
   tagWrap: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.md },
   dot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.brandPrimary },
   tagline: {
+    flexShrink: 1,
     color: colors.onSurface,
     fontFamily: fonts.poster,
-    fontSize: 22,
-    letterSpacing: 1,
+    fontSize: 15,
+    letterSpacing: 0.5,
     textAlign: "center",
   },
   googleBtn: {

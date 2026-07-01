@@ -1,13 +1,13 @@
-# StatHead — PRD
+# DeepCut Sports — PRD
 
 ## Original Problem Statement
 Build a mobile app: sports trivia app. Evolved: AI questions, timed quiz, Google login, global leaderboard, difficulty + era + timer scoring multipliers, StatHead street-art rebrand, and a multiplayer friends lobby with native share-sheet invites (no SMS provider).
 
 ## Architecture
-- Frontend: Expo Router (SDK 54), reanimated, @gorhom/bottom-sheet, expo-image, expo-linear-gradient, expo-haptics, expo-clipboard, RN Share. Fonts: Permanent Marker (logo), Bangers (headers), Barlow Condensed (numbers), IBM Plex Sans (body).
+- Frontend: Expo Router (SDK 54), reanimated, @gorhom/bottom-sheet, expo-image, expo-linear-gradient, expo-haptics, expo-clipboard, RN Share. Fonts: Permanent Marker (brush logo/headers), Rubik Spray Paint (tag section headers), Barlow Condensed (numbers), IBM Plex Sans (body).
 - Backend: FastAPI + Motor (MongoDB). LLM via emergentintegrations (gemini-3-flash-preview), EMERGENT_LLM_KEY.
 - Auth: Emergent Google OAuth, Bearer session tokens.
-- Brand: StatHead — black + graffiti green (#35E06A) + light blue, punk/street-art.
+- Brand: DeepCut Sports ("Trivia for the fans who remember the backup") — black base, hot-pink #FF0EA9 primary, gold #FFC107 crown, purple #6A00FF + cyan #00B8FF accents, graffiti/street-art.
 
 ## Data model
 - users (+ last_seen, phone optional), user_sessions

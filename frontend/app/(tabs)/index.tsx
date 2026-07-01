@@ -57,7 +57,7 @@ export default function Home() {
     <View style={styles.container} testID="home-screen">
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
         <View style={styles.brandRow}>
-          <Text style={styles.wordmark}>StatHead</Text>
+          <Text style={styles.wordmark}>DeepCut Sports</Text>
           <MaterialCommunityIcons name="spray" size={22} color={colors.brandPrimary} />
         </View>
         <View style={styles.profileRow}>
@@ -241,7 +241,7 @@ const styles = StyleSheet.create({
     borderBottomColor: colors.divider,
   },
   brandRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.md },
-  wordmark: { color: colors.onSurface, fontFamily: fonts.logo, fontSize: 30, letterSpacing: 0.5 },
+  wordmark: { color: colors.onSurface, fontFamily: fonts.logo, fontSize: 26, letterSpacing: 0.5 },
   mpCard: {
     flexDirection: "row",
     alignItems: "center",

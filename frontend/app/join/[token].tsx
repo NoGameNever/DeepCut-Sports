@@ -10,7 +10,7 @@ import { useAuth } from "@/src/context/AuthContext";
 import { sportName } from "@/src/constants/sports";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
-const HERO = require("../../assets/images/stathead_hero.png");
+const HERO = require("../../assets/images/deepcut_hero.png");
 
 export default function JoinLobby() {
   const { token } = useLocalSearchParams<{ token: string }>();

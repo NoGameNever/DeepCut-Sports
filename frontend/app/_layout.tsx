@@ -25,6 +25,7 @@ export default function RootLayout() {
     "IBMPlexSans-SemiBold": require("../assets/fonts/IBMPlexSans-SemiBold.ttf"),
     "PermanentMarker-Regular": require("../assets/fonts/PermanentMarker-Regular.ttf"),
     "Bangers-Regular": require("../assets/fonts/Bangers-Regular.ttf"),
+    "RubikSprayPaint-Regular": require("../assets/fonts/RubikSprayPaint-Regular.ttf"),
   });
 
   const ready = (iconsLoaded || iconsError) && (fontsLoaded || fontsError);
