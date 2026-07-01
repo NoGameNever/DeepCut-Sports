@@ -20,6 +20,26 @@ export const DIFFICULTIES = [
   { key: "hard", label: "Hard" },
 ] as const;
 
+// Shorter timer => higher points multiplier
+export const TIMER_OPTIONS = [
+  { key: "blitz", label: "10s", seconds: 10, mult: 1.5 },
+  { key: "standard", label: "15s", seconds: 15, mult: 1 },
+  { key: "chill", label: "20s", seconds: 20, mult: 0.75 },
+] as const;
+
+// Broader date range => higher points multiplier
+export const ERA_OPTIONS = [
+  { key: "modern", label: "Modern", hint: "Last 10 yrs", mult: 1 },
+  { key: "2000s", label: "2000s+", hint: "Since 2000", mult: 1.25 },
+  { key: "alltime", label: "All-Time", hint: "Any era", mult: 1.5 },
+] as const;
+
+export const timerOption = (key: string) =>
+  TIMER_OPTIONS.find((t) => t.key === key) ?? TIMER_OPTIONS[1];
+
+export const eraOption = (key: string) =>
+  ERA_OPTIONS.find((e) => e.key === key) ?? ERA_OPTIONS[0];
+
 export const sportName = (key: string) =>
   SPORTS.find((s) => s.key === key)?.name ?? key;
 

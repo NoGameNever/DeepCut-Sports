@@ -6,20 +6,24 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { api } from "@/src/api/client";
-import { sportName } from "@/src/constants/sports";
+import { sportName, timerOption, eraOption } from "@/src/constants/sports";
 import { useToast } from "@/src/components/Toast";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
-const TIME_PER_Q = 15;
 const BASE_POINTS = 100;
 
 type Q = { id: string; question: string; options: string[]; correct_index: number };
 
 export default function Quiz() {
-  const { sport, difficulty } = useLocalSearchParams<{ sport: string; difficulty: string }>();
+  const { sport, difficulty, timer, era } = useLocalSearchParams<{
+    sport: string; difficulty: string; timer: string; era: string;
+  }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const toast = useToast();
+
+  const perQuestionSeconds = timerOption(timer).seconds;
+  const multiplier = timerOption(timer).mult * eraOption(era).mult;
 
   const [questions, setQuestions] = useState<Q[] | null>(null);
   const [error, setError] = useState(false);
@@ -28,7 +32,7 @@ export default function Quiz() {
   const [locked, setLocked] = useState(false);
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
-  const [secondsLeft, setSecondsLeft] = useState(TIME_PER_Q);
+  const [secondsLeft, setSecondsLeft] = useState(perQuestionSeconds);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const progress = useSharedValue(0);
@@ -37,12 +41,12 @@ export default function Quiz() {
     setError(false);
     setQuestions(null);
     try {
-      const qs = await api.generateQuiz(sport, difficulty, 7);
+      const qs = await api.generateQuiz(sport, difficulty, era, 7);
       setQuestions(qs);
     } catch {
       setError(true);
     }
-  }, [sport, difficulty]);
+  }, [sport, difficulty, era]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -54,13 +58,15 @@ export default function Quiz() {
         params: {
           sport,
           difficulty,
+          timer,
+          era,
           score: String(finalScore),
           correct: String(finalCorrect),
           total: String(total),
         },
       });
     },
-    [router, sport, difficulty]
+    [router, sport, difficulty, timer, era]
   );
 
   const advance = useCallback(
@@ -72,10 +78,10 @@ export default function Quiz() {
         setCurrent((c) => c + 1);
         setSelected(null);
         setLocked(false);
-        setSecondsLeft(TIME_PER_Q);
+        setSecondsLeft(perQuestionSeconds);
       }
     },
-    [questions, current, finish]
+    [questions, current, finish, perQuestionSeconds]
   );
 
   const handleAnswer = useCallback(
@@ -89,7 +95,7 @@ export default function Quiz() {
       let newCorrect = correctCount;
       if (isCorrect) {
         const bonus = secondsLeft * 10;
-        newScore = score + BASE_POINTS + bonus;
+        newScore = score + Math.round((BASE_POINTS + bonus) * multiplier);
         newCorrect = correctCount + 1;
         setScore(newScore);
         setCorrectCount(newCorrect);
@@ -100,7 +106,7 @@ export default function Quiz() {
       setSelected(index);
       setTimeout(() => advance(newScore, newCorrect), 1100);
     },
-    [locked, questions, current, score, correctCount, secondsLeft, advance]
+    [locked, questions, current, score, correctCount, secondsLeft, advance, multiplier]
   );
 
   // timer

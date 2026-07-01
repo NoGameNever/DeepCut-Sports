@@ -42,6 +42,11 @@ SPORTS = {
     "baseball": "Baseball (MLB)",
 }
 DIFFICULTIES = {"easy", "medium", "hard"}
+ERAS = {
+    "modern": "Focus on events, players, records and results from roughly the last 10 years (recent era).",
+    "2000s": "Focus on events, players and records from the year 2000 up to the present day.",
+    "alltime": "Draw from the entire history of the sport across all eras, from its early days to the present.",
+}
 
 
 # ---------- Models ----------
@@ -52,6 +57,7 @@ class SessionRequest(BaseModel):
 class QuizRequest(BaseModel):
     sport: str
     difficulty: str
+    era: str = "modern"
     count: int = 7
 
 
@@ -168,10 +174,11 @@ def _parse_json_array(text: str):
 @api_router.post("/quiz/generate", response_model=List[Question])
 async def generate_quiz(body: QuizRequest, authorization: Optional[str] = Header(None)):
     await get_current_user(authorization)
-    if body.sport not in SPORTS or body.difficulty not in DIFFICULTIES:
-        raise HTTPException(status_code=400, detail="Invalid sport or difficulty")
+    if body.sport not in SPORTS or body.difficulty not in DIFFICULTIES or body.era not in ERAS:
+        raise HTTPException(status_code=400, detail="Invalid sport, difficulty or era")
 
     sport_name = SPORTS[body.sport]
+    era_instruction = ERAS[body.era]
     count = max(3, min(body.count, 10))
     system = (
         "You are a sports trivia question generator. You output ONLY valid JSON, no prose, "
@@ -179,6 +186,7 @@ async def generate_quiz(body: QuizRequest, authorization: Optional[str] = Header
     )
     prompt = (
         f"Generate {count} {body.difficulty}-difficulty multiple-choice trivia questions about {sport_name}. "
+        f"{era_instruction} "
         "Vary the topics (history, records, players, rules, famous events). "
         "Return a JSON array where each item is an object with exactly these keys: "
         '"question" (string), "options" (array of exactly 4 distinct strings), '

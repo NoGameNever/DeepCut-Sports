@@ -44,10 +44,10 @@ export const api = {
     }),
   me: () => request<any>("/auth/me"),
   logout: () => request("/auth/logout", { method: "POST" }),
-  generateQuiz: (sport: string, difficulty: string, count = 7) =>
+  generateQuiz: (sport: string, difficulty: string, era = "modern", count = 7) =>
     request<any[]>("/quiz/generate", {
       method: "POST",
-      body: { sport, difficulty, count },
+      body: { sport, difficulty, era, count },
     }),
   submitQuiz: (payload: {
     sport: string;

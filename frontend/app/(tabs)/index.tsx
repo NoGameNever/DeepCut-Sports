@@ -7,10 +7,10 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { MaterialCommunityIcons, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeInDown } from "react-native-reanimated";
-import BottomSheet, { BottomSheetView, BottomSheetBackdrop } from "@gorhom/bottom-sheet";
+import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from "@gorhom/bottom-sheet";
 import { useAuth } from "@/src/context/AuthContext";
 import { api } from "@/src/api/client";
-import { SPORTS, DIFFICULTIES, Sport } from "@/src/constants/sports";
+import { SPORTS, DIFFICULTIES, TIMER_OPTIONS, ERA_OPTIONS, timerOption, eraOption, Sport } from "@/src/constants/sports";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
 export default function Home() {
@@ -20,6 +20,8 @@ export default function Home() {
   const sheetRef = useRef<BottomSheet>(null);
   const [selected, setSelected] = useState<Sport | null>(null);
   const [difficulty, setDifficulty] = useState("medium");
+  const [timer, setTimer] = useState("standard");
+  const [era, setEra] = useState("modern");
   const [rank, setRank] = useState<number | null>(null);
 
   useFocusEffect(
@@ -29,12 +31,16 @@ export default function Home() {
     }, [refresh])
   );
 
-  const snapPoints = useMemo(() => [340], []);
+  const snapPoints = useMemo(() => ["78%"], []);
+
+  const multiplier = timerOption(timer).mult * eraOption(era).mult;
 
   const openSheet = (sport: Sport) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelected(sport);
     setDifficulty("medium");
+    setTimer("standard");
+    setEra("modern");
     sheetRef.current?.expand();
   };
 
@@ -42,7 +48,7 @@ export default function Home() {
     if (!selected) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     sheetRef.current?.close();
-    router.push({ pathname: "/quiz", params: { sport: selected.key, difficulty } });
+    router.push({ pathname: "/quiz", params: { sport: selected.key, difficulty, timer, era } });
   };
 
   const initial = (user?.name || "P").charAt(0).toUpperCase();
@@ -116,7 +122,10 @@ export default function Home() {
           <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.6} />
         )}
       >
-        <BottomSheetView style={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]}>
+        <BottomSheetScrollView
+          contentContainerStyle={[styles.sheet, { paddingBottom: insets.bottom + spacing.lg }]}
+          showsVerticalScrollIndicator={false}
+        >
           {selected && (
             <>
               <View style={styles.sheetHeader}>
@@ -125,10 +134,11 @@ export default function Home() {
                 </View>
                 <View>
                   <Text style={styles.sheetTitle}>{selected.name}</Text>
-                  <Text style={styles.sheetSub}>Choose your difficulty</Text>
+                  <Text style={styles.sheetSub}>Configure your match</Text>
                 </View>
               </View>
 
+              <Text style={styles.segLabel}>DIFFICULTY</Text>
               <View style={styles.segment}>
                 {DIFFICULTIES.map((d) => {
                   const active = difficulty === d.key;
@@ -136,7 +146,7 @@ export default function Home() {
                     <Pressable
                       key={d.key}
                       testID={`difficulty-${d.key}`}
-                      onPress={() => setDifficulty(d.key)}
+                      onPress={() => { Haptics.selectionAsync(); setDifficulty(d.key); }}
                       style={[styles.segmentItem, active && styles.segmentItemActive]}
                     >
                       <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{d.label}</Text>
@@ -145,13 +155,62 @@ export default function Home() {
                 })}
               </View>
 
+              <View style={styles.segLabelRow}>
+                <Text style={styles.segLabel}>TIME LIMIT</Text>
+                <Text style={styles.segHint}>shorter = more points</Text>
+              </View>
+              <View style={styles.segment}>
+                {TIMER_OPTIONS.map((t) => {
+                  const active = timer === t.key;
+                  return (
+                    <Pressable
+                      key={t.key}
+                      testID={`timer-${t.key}`}
+                      onPress={() => { Haptics.selectionAsync(); setTimer(t.key); }}
+                      style={[styles.segmentItem, active && styles.segmentItemActive]}
+                    >
+                      <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{t.label}</Text>
+                      <Text style={[styles.segMult, active && styles.segMultActive]}>×{t.mult}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <View style={styles.segLabelRow}>
+                <Text style={styles.segLabel}>ERA</Text>
+                <Text style={styles.segHint}>broader = more points</Text>
+              </View>
+              <View style={styles.segment}>
+                {ERA_OPTIONS.map((e) => {
+                  const active = era === e.key;
+                  return (
+                    <Pressable
+                      key={e.key}
+                      testID={`era-${e.key}`}
+                      onPress={() => { Haptics.selectionAsync(); setEra(e.key); }}
+                      style={[styles.segmentItemCol, active && styles.segmentItemActive]}
+                    >
+                      <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{e.label}</Text>
+                      <Text style={[styles.segHintSmall, active && styles.segMultActive]}>{e.hint}</Text>
+                      <Text style={[styles.segMult, active && styles.segMultActive]}>×{e.mult}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <View style={styles.multRow} testID="points-multiplier">
+                <Ionicons name="trending-up" size={16} color={colors.brandPrimary} />
+                <Text style={styles.multText}>Points multiplier</Text>
+                <Text style={styles.multValue}>×{multiplier.toFixed(2)}</Text>
+              </View>
+
               <Pressable testID="start-match-button" style={styles.startBtn} onPress={startMatch}>
                 <Ionicons name="flash" size={20} color={colors.onBrandPrimary} />
                 <Text style={styles.startText}>Start Match</Text>
               </Pressable>
             </>
           )}
-        </BottomSheetView>
+        </BottomSheetScrollView>
       </BottomSheet>
     </View>
   );
@@ -229,9 +288,28 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
     padding: spacing.xs,
     gap: spacing.xs,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
-  segmentItem: { flex: 1, paddingVertical: spacing.md, borderRadius: radius.sm, alignItems: "center" },
+  segLabel: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold, fontSize: 11, letterSpacing: 1, marginBottom: spacing.sm },
+  segLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  segHint: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: 11, marginBottom: spacing.sm },
+  segmentItem: { flex: 1, paddingVertical: spacing.md, borderRadius: radius.sm, alignItems: "center", gap: 2 },
+  segmentItemCol: { flex: 1, paddingVertical: spacing.md, borderRadius: radius.sm, alignItems: "center", gap: 2 },
+  segMult: { color: colors.onSurfaceTertiary, fontFamily: fonts.bodyMedium, fontSize: 10 },
+  segMultActive: { color: colors.onBrandPrimary },
+  segHintSmall: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: 10 },
+  multRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    backgroundColor: colors.brandTertiary,
+    borderRadius: radius.md,
+    paddingVertical: spacing.md,
+    paddingHorizontal: spacing.lg,
+    marginBottom: spacing.lg,
+  },
+  multText: { flex: 1, color: colors.onBrandTertiary, fontFamily: fonts.bodyMedium, fontSize: fontSize.base },
+  multValue: { color: colors.brandPrimary, fontFamily: fonts.displayBold, fontSize: fontSize.xl },
   segmentItemActive: { backgroundColor: colors.brandPrimary },
   segmentText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: fontSize.base },
   segmentTextActive: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold },
