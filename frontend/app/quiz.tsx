@@ -15,15 +15,17 @@ const BASE_POINTS = 100;
 type Q = { id: string; question: string; options: string[]; correct_index: number };
 
 export default function Quiz() {
-  const { sport, difficulty, timer, era } = useLocalSearchParams<{
-    sport: string; difficulty: string; timer: string; era: string;
+  const { sport, difficulty, timer, era, lobbyId } = useLocalSearchParams<{
+    sport: string; difficulty: string; timer: string; era: string; lobbyId?: string;
   }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const toast = useToast();
 
-  const perQuestionSeconds = timerOption(timer).seconds;
-  const multiplier = timerOption(timer).mult * eraOption(era).mult;
+  const [cfgTimer, setCfgTimer] = useState(timer || "standard");
+  const [cfgEra, setCfgEra] = useState(era || "modern");
+  const perQuestionSeconds = timerOption(cfgTimer).seconds;
+  const multiplier = timerOption(cfgTimer).mult * eraOption(cfgEra).mult;
 
   const [questions, setQuestions] = useState<Q[] | null>(null);
   const [error, setError] = useState(false);
@@ -41,18 +43,33 @@ export default function Quiz() {
     setError(false);
     setQuestions(null);
     try {
-      const qs = await api.generateQuiz(sport, difficulty, era, 7);
-      setQuestions(qs);
+      if (lobbyId) {
+        const g = await api.lobbyGame(lobbyId);
+        setCfgTimer(g.timer);
+        setCfgEra(g.era);
+        setSecondsLeft(timerOption(g.timer).seconds);
+        setQuestions(g.questions);
+      } else {
+        const qs = await api.generateQuiz(sport, difficulty, era, 7);
+        setQuestions(qs);
+      }
     } catch {
       setError(true);
     }
-  }, [sport, difficulty, era]);
+  }, [sport, difficulty, era, lobbyId]);
 
   useEffect(() => { load(); }, [load]);
 
   const finish = useCallback(
     (finalScore: number, finalCorrect: number, total: number) => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      if (lobbyId) {
+        api
+          .submitLobbyScore(lobbyId, { score: finalScore, correct: finalCorrect, total })
+          .catch(() => {})
+          .finally(() => router.replace(`/lobby/${lobbyId}`));
+        return;
+      }
       router.replace({
         pathname: "/results",
         params: {
@@ -66,7 +83,7 @@ export default function Quiz() {
         },
       });
     },
-    [router, sport, difficulty, timer, era]
+    [router, sport, difficulty, timer, era, lobbyId]
   );
 
   const advance = useCallback(
@@ -152,7 +169,7 @@ export default function Quiz() {
     return (
       <View style={styles.centered} testID="quiz-loading">
         <ActivityIndicator size="large" color={colors.brandPrimary} />
-        <Text style={styles.centerText}>Preparing your {sportName(sport)} match…</Text>
+        <Text style={styles.centerText}>{lobbyId ? "Loading your match…" : `Preparing your ${sportName(sport)} match…`}</Text>
       </View>
     );
   }

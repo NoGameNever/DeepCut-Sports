@@ -57,4 +57,40 @@ export const api = {
     total: number;
   }) => request<any>("/quiz/submit", { method: "POST", body: payload }),
   leaderboard: () => request<any>("/leaderboard"),
+
+  // ----- Friends -----
+  searchUsers: (q: string) => request<any[]>(`/users/search?q=${encodeURIComponent(q)}`),
+  sendFriendRequest: (user_id: string) =>
+    request("/friends/request", { method: "POST", body: { user_id } }),
+  acceptFriend: (friendship_id: string) =>
+    request(`/friends/${friendship_id}/accept`, { method: "POST" }),
+  declineFriend: (friendship_id: string) =>
+    request(`/friends/${friendship_id}/decline`, { method: "POST" }),
+  removeFriend: (user_id: string) =>
+    request("/friends/remove", { method: "POST", body: { user_id } }),
+  blockUser: (user_id: string) =>
+    request("/friends/block", { method: "POST", body: { user_id } }),
+  friends: () => request<any[]>("/friends"),
+  friendRequests: () => request<any[]>("/friends/requests"),
+
+  // ----- Lobbies -----
+  createLobby: (payload: { sport: string; difficulty: string; timer: string; era: string }) =>
+    request<any>("/lobbies", { method: "POST", body: payload }),
+  getLobby: (id: string) => request<any>(`/lobbies/${id}`),
+  getInvite: (id: string) =>
+    request<{ inviteToken: string; inviteUrl: string; expiresAt: string }>(`/lobbies/${id}/invite`, { method: "POST" }),
+  inviteFriend: (id: string, user_id: string) =>
+    request(`/lobbies/${id}/invite/friend`, { method: "POST", body: { user_id } }),
+  validateInvite: (token: string) => request<any>(`/join/${token}`, { auth: false }),
+  joinByToken: (token: string) => request<any>("/join", { method: "POST", body: { token } }),
+  leaveLobby: (id: string) => request(`/lobbies/${id}/leave`, { method: "POST" }),
+  startLobby: (id: string) => request<any>(`/lobbies/${id}/start`, { method: "POST" }),
+  lobbyGame: (id: string) => request<any>(`/lobbies/${id}/game`),
+  submitLobbyScore: (id: string, payload: { score: number; correct: number; total: number }) =>
+    request<any>(`/lobbies/${id}/score`, { method: "POST", body: payload }),
+  myLobbyInvites: () => request<any[]>("/lobby-invites"),
+  acceptLobbyInvite: (invite_id: string) =>
+    request<any>(`/lobby-invites/${invite_id}/accept`, { method: "POST" }),
+  declineLobbyInvite: (invite_id: string) =>
+    request(`/lobby-invites/${invite_id}/decline`, { method: "POST" }),
 };

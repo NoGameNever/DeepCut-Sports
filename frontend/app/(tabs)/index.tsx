@@ -95,7 +95,18 @@ export default function Home() {
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxxl }}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.sectionTitle}>SELECT A SPORT</Text>
+        <Pressable testID="play-with-friends" style={styles.mpCard} onPress={() => router.push("/lobby/create")}>
+          <View style={styles.mpIcon}>
+            <Ionicons name="people" size={24} color={colors.onBrandPrimary} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.mpTitle}>Play with Friends</Text>
+            <Text style={styles.mpSub}>Create a lobby & invite up to 3 friends</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={20} color={colors.onBrandPrimary} />
+        </Pressable>
+
+        <Text style={styles.sectionTitle}>QUICK PLAY</Text>
         <View style={styles.grid}>
           {SPORTS.map((sport, i) => (
             <Animated.View key={sport.key} entering={FadeInDown.delay(i * 50)} style={styles.gridItem}>
@@ -231,6 +242,18 @@ const styles = StyleSheet.create({
   },
   brandRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.md },
   wordmark: { color: colors.onSurface, fontFamily: fonts.logo, fontSize: 30, letterSpacing: 0.5 },
+  mpCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.md,
+    backgroundColor: colors.brandPrimary,
+    borderRadius: radius.md,
+    padding: spacing.lg,
+    marginBottom: spacing.xl,
+  },
+  mpIcon: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: "rgba(0,0,0,0.18)", alignItems: "center", justifyContent: "center" },
+  mpTitle: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.xl },
+  mpSub: { color: colors.onBrandPrimary, fontFamily: fonts.body, fontSize: fontSize.sm, opacity: 0.8 },
   profileRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.lg },
   avatar: { width: 48, height: 48, borderRadius: radius.pill, backgroundColor: colors.surfaceTertiary },
   avatarFallback: { alignItems: "center", justifyContent: "center" },

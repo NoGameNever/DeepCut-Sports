@@ -2,6 +2,7 @@ import os
 import re
 import json
 import uuid
+import secrets
 import logging
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
@@ -23,6 +24,13 @@ mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ["DB_NAME"]]
 EMERGENT_LLM_KEY = os.environ["EMERGENT_LLM_KEY"]
+APP_BASE_URL = os.environ.get("APP_BASE_URL", "").rstrip("/")
+
+MAX_PLAYERS = 4
+LOBBY_TTL = timedelta(hours=2)
+INVITE_TTL = timedelta(hours=2)
+ONLINE_WINDOW = timedelta(seconds=90)
+TIMERS = {"blitz", "standard", "chill"}
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -92,6 +100,10 @@ async def get_current_user(authorization: Optional[str] = Header(None)):
     user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
     if not user:
         raise HTTPException(status_code=401, detail="User not found")
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"last_seen": datetime.now(timezone.utc)}},
+    )
     return user
 
 
@@ -283,6 +295,641 @@ async def list_sports():
     return [{"key": k, "name": v} for k, v in SPORTS.items()]
 
 
+# =====================================================================
+# FRIENDS + MULTIPLAYER LOBBIES + NATIVE-SHARE INVITES
+# Architecture: thin route layer -> service helpers below. No SMS provider;
+# invites are shared via the device's native Share Sheet using a secure link.
+# =====================================================================
+
+def _now():
+    return datetime.now(timezone.utc)
+
+
+def _aware(dt):
+    if dt is None:
+        return None
+    return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+
+def _gen_token():
+    """Cryptographically-random, URL-safe, hard-to-guess invite token."""
+    return secrets.token_urlsafe(9)  # ~12 chars
+
+
+def _gen_code():
+    """Short human-shareable lobby code (never a DB id)."""
+    return "".join(secrets.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in range(6))
+
+
+def _invite_url(token: str) -> str:
+    base = APP_BASE_URL or ""
+    return f"{base}/join/{token}"
+
+
+def _is_online(user: dict) -> bool:
+    ls = _aware(user.get("last_seen"))
+    return bool(ls and (_now() - ls) < ONLINE_WINDOW)
+
+
+async def _public_user(user_id: str):
+    u = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not u:
+        return None
+    return {
+        "user_id": u["user_id"],
+        "name": u.get("name") or "Player",
+        "picture": u.get("picture"),
+        "online": _is_online(u),
+    }
+
+
+async def _friendship_between(a: str, b: str):
+    return await db.friendships.find_one({
+        "$or": [
+            {"requester_user_id": a, "receiver_user_id": b},
+            {"requester_user_id": b, "receiver_user_id": a},
+        ]
+    }, {"_id": 0})
+
+
+async def _relation_status(me: str, other: str) -> str:
+    """Relationship of `other` relative to `me`."""
+    f = await _friendship_between(me, other)
+    if not f:
+        return "none"
+    if f["status"] == "accepted":
+        return "friends"
+    if f["status"] == "blocked":
+        return "blocked_by_me" if f["requester_user_id"] == me else "blocked_me"
+    if f["status"] == "pending":
+        return "request_sent" if f["requester_user_id"] == me else "request_received"
+    return "none"
+
+
+async def _member_count(lobby_id: str) -> int:
+    return await db.lobby_members.count_documents({"lobby_id": lobby_id})
+
+
+async def _expire_if_needed(lobby: dict):
+    if lobby["status"] == "waiting" and _aware(lobby.get("expires_at")) and _aware(lobby["expires_at"]) < _now():
+        await db.lobbies.update_one({"id": lobby["id"]}, {"$set": {"status": "expired"}})
+        lobby["status"] = "expired"
+    return lobby
+
+
+async def _lobby_detail(lobby: dict, me: str):
+    members = await db.lobby_members.find({"lobby_id": lobby["id"]}, {"_id": 0}).sort("joined_at", 1).to_list(10)
+    member_out = []
+    for m in members:
+        pu = await _public_user(m["user_id"])
+        if pu:
+            pu.update({"role": m["role"], "score": m.get("score"), "finished": m.get("finished", False)})
+            member_out.append(pu)
+    # pending friend invites (not yet accepted)
+    invites = await db.lobby_invites.find(
+        {"lobby_id": lobby["id"], "invite_type": "friend", "status": "pending"}, {"_id": 0}
+    ).to_list(10)
+    pending_friends = []
+    for inv in invites:
+        pu = await _public_user(inv["invited_user_id"])
+        if pu:
+            pu["invite_id"] = inv["id"]
+            pending_friends.append(pu)
+    return {
+        "id": lobby["id"],
+        "code": lobby["code"],
+        "status": lobby["status"],
+        "sport": lobby["sport"],
+        "difficulty": lobby["difficulty"],
+        "timer": lobby["timer"],
+        "era": lobby["era"],
+        "max_players": lobby["max_players"],
+        "creator_user_id": lobby["creator_user_id"],
+        "is_host": lobby["creator_user_id"] == me,
+        "invite_token": lobby.get("invite_token"),
+        "invite_url": _invite_url(lobby["invite_token"]) if lobby.get("invite_token") else None,
+        "expires_at": _aware(lobby.get("expires_at")).isoformat() if lobby.get("expires_at") else None,
+        "members": member_out,
+        "member_count": len(member_out),
+        "pending_friend_invites": pending_friends,
+    }
+
+
+async def _generate_questions(sport, difficulty, era, count=7):
+    sport_name = SPORTS[sport]
+    era_instruction = ERAS[era]
+    count = max(3, min(count, 10))
+    system = (
+        "You are a sports trivia question generator. You output ONLY valid JSON, no prose, "
+        "no markdown fences. Each question must be factually accurate and unambiguous."
+    )
+    prompt = (
+        f"Generate {count} {difficulty}-difficulty multiple-choice trivia questions about {sport_name}. "
+        f"{era_instruction} Vary the topics. "
+        'Return a JSON array; each item has keys "question" (string), "options" (array of exactly 4 distinct '
+        'strings), "correct_index" (integer 0-3). Output only the JSON array.'
+    )
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"quiz_{uuid.uuid4().hex}", system_message=system).with_model(
+        "gemini", "gemini-3-flash-preview"
+    )
+    raw = await chat.send_message(UserMessage(text=prompt))
+    items = _parse_json_array(raw)
+    out = []
+    for it in items:
+        opts = it.get("options", [])
+        ci = it.get("correct_index", 0)
+        if not isinstance(opts, list) or len(opts) != 4:
+            continue
+        if not isinstance(ci, int) or ci < 0 or ci > 3:
+            ci = 0
+        out.append({
+            "id": uuid.uuid4().hex,
+            "question": str(it.get("question", "")).strip(),
+            "options": [str(o) for o in opts],
+            "correct_index": ci,
+        })
+    return out
+
+
+# ---------- Request bodies ----------
+class FriendTargetBody(BaseModel):
+    user_id: str
+
+
+class CreateLobbyBody(BaseModel):
+    sport: str
+    difficulty: str = "medium"
+    timer: str = "standard"
+    era: str = "modern"
+
+
+class JoinBody(BaseModel):
+    token: str
+
+
+class LobbyScoreBody(BaseModel):
+    score: int
+    correct: int
+    total: int
+
+
+# ---------- Friends API ----------
+@api_router.get("/users/search")
+async def search_users(q: str = "", authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    q = (q or "").strip()
+    if len(q) < 2:
+        return []
+    rx = {"$regex": re.escape(q), "$options": "i"}
+    docs = await db.users.find(
+        {"$or": [{"name": rx}, {"email": rx}, {"phone": rx}], "user_id": {"$ne": me["user_id"]}},
+        {"_id": 0},
+    ).limit(20).to_list(20)
+    out = []
+    for u in docs:
+        out.append({
+            "user_id": u["user_id"],
+            "name": u.get("name") or "Player",
+            "picture": u.get("picture"),
+            "online": _is_online(u),
+            "relation": await _relation_status(me["user_id"], u["user_id"]),
+        })
+    return out
+
+
+@api_router.post("/friends/request")
+async def send_friend_request(body: FriendTargetBody, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    target = body.user_id
+    if target == me["user_id"]:
+        raise HTTPException(status_code=400, detail="You can't add yourself")
+    if not await db.users.find_one({"user_id": target}):
+        raise HTTPException(status_code=404, detail="User not found")
+    existing = await _friendship_between(me["user_id"], target)
+    if existing:
+        if existing["status"] == "blocked":
+            raise HTTPException(status_code=403, detail="Unavailable")
+        if existing["status"] == "accepted":
+            raise HTTPException(status_code=400, detail="Already friends")
+        # reverse pending -> auto accept
+        if existing["status"] == "pending" and existing["receiver_user_id"] == me["user_id"]:
+            await db.friendships.update_one({"id": existing["id"]}, {"$set": {"status": "accepted", "updated_at": _now()}})
+            return {"status": "accepted"}
+        raise HTTPException(status_code=400, detail="Request already pending")
+    await db.friendships.insert_one({
+        "id": uuid.uuid4().hex,
+        "requester_user_id": me["user_id"],
+        "receiver_user_id": target,
+        "status": "pending",
+        "created_at": _now(),
+        "updated_at": _now(),
+    })
+    return {"status": "pending"}
+
+
+@api_router.post("/friends/{friendship_id}/accept")
+async def accept_friend(friendship_id: str, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    f = await db.friendships.find_one({"id": friendship_id}, {"_id": 0})
+    if not f or f["status"] != "pending":
+        raise HTTPException(status_code=404, detail="Request not found")
+    if f["receiver_user_id"] != me["user_id"]:
+        raise HTTPException(status_code=403, detail="Not your request to accept")
+    await db.friendships.update_one({"id": friendship_id}, {"$set": {"status": "accepted", "updated_at": _now()}})
+    return {"status": "accepted"}
+
+
+@api_router.post("/friends/{friendship_id}/decline")
+async def decline_friend(friendship_id: str, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    f = await db.friendships.find_one({"id": friendship_id}, {"_id": 0})
+    if not f or f["status"] != "pending":
+        raise HTTPException(status_code=404, detail="Request not found")
+    if f["receiver_user_id"] != me["user_id"]:
+        raise HTTPException(status_code=403, detail="Not your request to decline")
+    await db.friendships.delete_one({"id": friendship_id})
+    return {"status": "declined"}
+
+
+@api_router.post("/friends/remove")
+async def remove_friend(body: FriendTargetBody, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    f = await _friendship_between(me["user_id"], body.user_id)
+    if not f or f["status"] != "accepted":
+        raise HTTPException(status_code=404, detail="Not friends")
+    await db.friendships.delete_one({"id": f["id"]})
+    return {"status": "removed"}
+
+
+@api_router.post("/friends/block")
+async def block_user(body: FriendTargetBody, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    if body.user_id == me["user_id"]:
+        raise HTTPException(status_code=400, detail="You can't block yourself")
+    f = await _friendship_between(me["user_id"], body.user_id)
+    if f:
+        await db.friendships.delete_one({"id": f["id"]})
+    await db.friendships.insert_one({
+        "id": uuid.uuid4().hex,
+        "requester_user_id": me["user_id"],  # blocker
+        "receiver_user_id": body.user_id,
+        "status": "blocked",
+        "created_at": _now(),
+        "updated_at": _now(),
+    })
+    return {"status": "blocked"}
+
+
+@api_router.post("/friends/unblock")
+async def unblock_user(body: FriendTargetBody, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    await db.friendships.delete_one({
+        "requester_user_id": me["user_id"], "receiver_user_id": body.user_id, "status": "blocked"
+    })
+    return {"status": "unblocked"}
+
+
+@api_router.get("/friends")
+async def list_friends(authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    docs = await db.friendships.find(
+        {"status": "accepted", "$or": [{"requester_user_id": me["user_id"]}, {"receiver_user_id": me["user_id"]}]},
+        {"_id": 0},
+    ).to_list(200)
+    out = []
+    for f in docs:
+        other = f["receiver_user_id"] if f["requester_user_id"] == me["user_id"] else f["requester_user_id"]
+        pu = await _public_user(other)
+        if pu:
+            out.append(pu)
+    out.sort(key=lambda x: (not x["online"], x["name"].lower()))
+    return out
+
+
+@api_router.get("/friends/requests")
+async def friend_requests(authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    docs = await db.friendships.find(
+        {"status": "pending", "receiver_user_id": me["user_id"]}, {"_id": 0}
+    ).to_list(100)
+    out = []
+    for f in docs:
+        pu = await _public_user(f["requester_user_id"])
+        if pu:
+            pu["friendship_id"] = f["id"]
+            out.append(pu)
+    return out
+
+
+# ---------- Lobby API ----------
+@api_router.post("/lobbies")
+async def create_lobby(body: CreateLobbyBody, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    if body.sport not in SPORTS or body.difficulty not in DIFFICULTIES or body.era not in ERAS or body.timer not in TIMERS:
+        raise HTTPException(status_code=400, detail="Invalid lobby settings")
+    lobby_id = uuid.uuid4().hex
+    lobby = {
+        "id": lobby_id,
+        "creator_user_id": me["user_id"],
+        "code": _gen_code(),
+        "invite_token": _gen_token(),
+        "status": "waiting",
+        "sport": body.sport,
+        "difficulty": body.difficulty,
+        "timer": body.timer,
+        "era": body.era,
+        "max_players": MAX_PLAYERS,
+        "questions": None,
+        "created_at": _now(),
+        "expires_at": _now() + LOBBY_TTL,
+    }
+    await db.lobbies.insert_one(lobby)
+    await db.lobby_members.insert_one({
+        "id": uuid.uuid4().hex,
+        "lobby_id": lobby_id,
+        "user_id": me["user_id"],
+        "role": "host",
+        "score": None,
+        "finished": False,
+        "joined_at": _now(),
+    })
+    return await _lobby_detail(lobby, me["user_id"])
+
+
+async def _require_member(lobby_id: str, user_id: str):
+    lobby = await db.lobbies.find_one({"id": lobby_id}, {"_id": 0})
+    if not lobby:
+        raise HTTPException(status_code=404, detail="Lobby not found")
+    await _expire_if_needed(lobby)
+    member = await db.lobby_members.find_one({"lobby_id": lobby_id, "user_id": user_id}, {"_id": 0})
+    if not member:
+        raise HTTPException(status_code=403, detail="You are not in this lobby")
+    return lobby
+
+
+@api_router.get("/lobbies/{lobby_id}")
+async def get_lobby(lobby_id: str, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    lobby = await _require_member(lobby_id, me["user_id"])
+    return await _lobby_detail(lobby, me["user_id"])
+
+
+@api_router.post("/lobbies/{lobby_id}/invite")
+async def get_or_rotate_invite(lobby_id: str, authorization: Optional[str] = Header(None)):
+    """Return the shareable invite (host only). Used to feed the native Share Sheet."""
+    me = await get_current_user(authorization)
+    lobby = await _require_member(lobby_id, me["user_id"])
+    if lobby["creator_user_id"] != me["user_id"]:
+        raise HTTPException(status_code=403, detail="Only the host can invite")
+    token = lobby.get("invite_token") or _gen_token()
+    if not lobby.get("invite_token"):
+        await db.lobbies.update_one({"id": lobby_id}, {"$set": {"invite_token": token}})
+    return {
+        "inviteToken": token,
+        "inviteUrl": _invite_url(token),
+        "expiresAt": _aware(lobby.get("expires_at")).isoformat() if lobby.get("expires_at") else None,
+    }
+
+
+@api_router.post("/lobbies/{lobby_id}/revoke-invite")
+async def revoke_invite(lobby_id: str, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    lobby = await _require_member(lobby_id, me["user_id"])
+    if lobby["creator_user_id"] != me["user_id"]:
+        raise HTTPException(status_code=403, detail="Only the host can revoke")
+    token = _gen_token()
+    await db.lobbies.update_one({"id": lobby_id}, {"$set": {"invite_token": token}})
+    return {"inviteToken": token, "inviteUrl": _invite_url(token)}
+
+
+@api_router.post("/lobbies/{lobby_id}/invite/friend")
+async def invite_friend(lobby_id: str, body: FriendTargetBody, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    lobby = await _require_member(lobby_id, me["user_id"])
+    if lobby["status"] != "waiting":
+        raise HTTPException(status_code=409, detail="Lobby is not accepting players")
+    rel = await _relation_status(me["user_id"], body.user_id)
+    if rel != "friends":
+        raise HTTPException(status_code=403, detail="You can only invite friends")
+    if await db.lobby_members.find_one({"lobby_id": lobby_id, "user_id": body.user_id}):
+        raise HTTPException(status_code=400, detail="Already in the lobby")
+    dup = await db.lobby_invites.find_one({
+        "lobby_id": lobby_id, "invite_type": "friend", "invited_user_id": body.user_id, "status": "pending"
+    })
+    if dup:
+        raise HTTPException(status_code=400, detail="Already invited")
+    reserved = await _member_count(lobby_id) + await db.lobby_invites.count_documents(
+        {"lobby_id": lobby_id, "invite_type": "friend", "status": "pending"}
+    )
+    if reserved >= MAX_PLAYERS:
+        raise HTTPException(status_code=409, detail="Lobby is full")
+    await db.lobby_invites.insert_one({
+        "id": uuid.uuid4().hex,
+        "lobby_id": lobby_id,
+        "invite_type": "friend",
+        "invited_phone_number": None,
+        "invited_user_id": body.user_id,
+        "invite_token": None,
+        "status": "pending",
+        "created_at": _now(),
+        "expires_at": _now() + INVITE_TTL,
+        "accepted_by_user_id": None,
+    })
+    return {"status": "invited"}
+
+
+async def _do_join(lobby: dict, user_id: str):
+    """Validated join used by both link + friend flows. Returns lobby detail."""
+    await _expire_if_needed(lobby)
+    if lobby["status"] == "expired":
+        raise HTTPException(status_code=410, detail="This lobby has expired")
+    if lobby["status"] in ("active", "completed"):
+        raise HTTPException(status_code=409, detail="This game has already started")
+    if lobby["status"] != "waiting":
+        raise HTTPException(status_code=409, detail="Lobby unavailable")
+    existing = await db.lobby_members.find_one({"lobby_id": lobby["id"], "user_id": user_id}, {"_id": 0})
+    if existing:
+        return await _lobby_detail(lobby, user_id)  # idempotent reconnect
+    if await _member_count(lobby["id"]) >= lobby["max_players"]:
+        raise HTTPException(status_code=409, detail="This lobby is full")
+    await db.lobby_members.insert_one({
+        "id": uuid.uuid4().hex,
+        "lobby_id": lobby["id"],
+        "user_id": user_id,
+        "role": "player",
+        "score": None,
+        "finished": False,
+        "joined_at": _now(),
+    })
+    return await _lobby_detail(lobby, user_id)
+
+
+@api_router.get("/join/{token}")
+async def validate_invite(token: str):
+    """Public: validate an invite link before auth so the join screen can show state."""
+    lobby = await db.lobbies.find_one({"invite_token": token}, {"_id": 0})
+    if not lobby:
+        return {"valid": False, "reason": "invalid", "message": "This invite link is invalid."}
+    await _expire_if_needed(lobby)
+    count = await _member_count(lobby["id"])
+    if lobby["status"] == "expired":
+        return {"valid": False, "reason": "expired", "message": "This invite has expired."}
+    if lobby["status"] in ("active", "completed"):
+        return {"valid": False, "reason": "started", "message": "This game has already started."}
+    if count >= lobby["max_players"]:
+        return {"valid": False, "reason": "full", "message": "This lobby is full."}
+    host = await _public_user(lobby["creator_user_id"])
+    return {
+        "valid": True,
+        "lobby_id": lobby["id"],
+        "code": lobby["code"],
+        "sport": lobby["sport"],
+        "host_name": host["name"] if host else "A player",
+        "member_count": count,
+        "max_players": lobby["max_players"],
+    }
+
+
+@api_router.post("/join")
+async def join_by_token(body: JoinBody, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    lobby = await db.lobbies.find_one({"invite_token": body.token}, {"_id": 0})
+    if not lobby:
+        raise HTTPException(status_code=404, detail="Invalid invite link")
+    return await _do_join(lobby, me["user_id"])
+
+
+@api_router.post("/lobbies/{lobby_id}/leave")
+async def leave_lobby(lobby_id: str, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    lobby = await db.lobbies.find_one({"id": lobby_id}, {"_id": 0})
+    if not lobby:
+        raise HTTPException(status_code=404, detail="Lobby not found")
+    await db.lobby_members.delete_one({"lobby_id": lobby_id, "user_id": me["user_id"]})
+    if lobby["creator_user_id"] == me["user_id"]:
+        # host leaving cancels the lobby
+        await db.lobbies.update_one({"id": lobby_id}, {"$set": {"status": "expired"}})
+        await db.lobby_members.delete_many({"lobby_id": lobby_id})
+    return {"status": "left"}
+
+
+@api_router.post("/lobbies/{lobby_id}/start")
+async def start_lobby(lobby_id: str, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    lobby = await _require_member(lobby_id, me["user_id"])
+    if lobby["creator_user_id"] != me["user_id"]:
+        raise HTTPException(status_code=403, detail="Only the host can start the game")
+    if lobby["status"] != "waiting":
+        raise HTTPException(status_code=409, detail="Game already started")
+    if await _member_count(lobby_id) < 2:
+        raise HTTPException(status_code=400, detail="Need at least 2 players to start")
+    try:
+        questions = await _generate_questions(lobby["sport"], lobby["difficulty"], lobby["era"], 7)
+    except Exception as e:
+        logger.error(f"Lobby question generation failed: {e}")
+        raise HTTPException(status_code=502, detail="Couldn't generate questions, try again")
+    if not questions:
+        raise HTTPException(status_code=502, detail="No questions generated")
+    await db.lobbies.update_one(
+        {"id": lobby_id}, {"$set": {"status": "active", "questions": questions, "started_at": _now()}}
+    )
+    await db.lobby_invites.update_many(
+        {"lobby_id": lobby_id, "status": "pending"}, {"$set": {"status": "expired"}}
+    )
+    return {"status": "active"}
+
+
+@api_router.get("/lobbies/{lobby_id}/game")
+async def lobby_game(lobby_id: str, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    lobby = await _require_member(lobby_id, me["user_id"])
+    if lobby["status"] not in ("active", "completed") or not lobby.get("questions"):
+        raise HTTPException(status_code=409, detail="Game has not started")
+    # strip nothing — client needs correct_index to score locally
+    return {"questions": lobby["questions"], "timer": lobby["timer"], "era": lobby["era"], "sport": lobby["sport"]}
+
+
+@api_router.post("/lobbies/{lobby_id}/score")
+async def submit_lobby_score(lobby_id: str, body: LobbyScoreBody, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    lobby = await _require_member(lobby_id, me["user_id"])
+    member = await db.lobby_members.find_one({"lobby_id": lobby_id, "user_id": me["user_id"]}, {"_id": 0})
+    if member.get("finished"):
+        return await _lobby_detail(lobby, me["user_id"])  # idempotent
+    await db.lobby_members.update_one(
+        {"lobby_id": lobby_id, "user_id": me["user_id"]},
+        {"$set": {"score": body.score, "finished": True}},
+    )
+    # also credit global profile stats + leaderboard
+    u = await db.users.find_one({"user_id": me["user_id"]}, {"_id": 0})
+    sport_scores = u.get("sport_scores", {}) or {}
+    sport_scores[lobby["sport"]] = sport_scores.get(lobby["sport"], 0) + body.score
+    best_sport = max(sport_scores, key=sport_scores.get) if sport_scores else None
+    await db.users.update_one(
+        {"user_id": me["user_id"]},
+        {"$inc": {"total_score": body.score, "matches": 1, "correct_answers": body.correct, "total_answers": body.total},
+         "$set": {"sport_scores": sport_scores, "best_sport": best_sport}},
+    )
+    # if everyone finished, mark completed
+    total_m = await _member_count(lobby_id)
+    fin_m = await db.lobby_members.count_documents({"lobby_id": lobby_id, "finished": True})
+    if fin_m >= total_m:
+        await db.lobbies.update_one({"id": lobby_id}, {"$set": {"status": "completed"}})
+        lobby["status"] = "completed"
+    return await _lobby_detail(lobby, me["user_id"])
+
+
+# ---------- In-app lobby invites (friend) ----------
+@api_router.get("/lobby-invites")
+async def my_lobby_invites(authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    docs = await db.lobby_invites.find(
+        {"invite_type": "friend", "invited_user_id": me["user_id"], "status": "pending"}, {"_id": 0}
+    ).to_list(50)
+    out = []
+    for inv in docs:
+        lobby = await db.lobbies.find_one({"id": inv["lobby_id"]}, {"_id": 0})
+        if not lobby or lobby["status"] != "waiting":
+            continue
+        host = await _public_user(lobby["creator_user_id"])
+        out.append({
+            "invite_id": inv["id"],
+            "lobby_id": lobby["id"],
+            "sport": lobby["sport"],
+            "host_name": host["name"] if host else "A friend",
+            "host_picture": host["picture"] if host else None,
+            "member_count": await _member_count(lobby["id"]),
+            "max_players": lobby["max_players"],
+        })
+    return out
+
+
+@api_router.post("/lobby-invites/{invite_id}/accept")
+async def accept_lobby_invite(invite_id: str, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    inv = await db.lobby_invites.find_one({"id": invite_id}, {"_id": 0})
+    if not inv or inv["status"] != "pending" or inv["invited_user_id"] != me["user_id"]:
+        raise HTTPException(status_code=404, detail="Invite not found")
+    lobby = await db.lobbies.find_one({"id": inv["lobby_id"]}, {"_id": 0})
+    if not lobby:
+        raise HTTPException(status_code=404, detail="Lobby no longer exists")
+    detail = await _do_join(lobby, me["user_id"])
+    await db.lobby_invites.update_one(
+        {"id": invite_id}, {"$set": {"status": "accepted", "accepted_by_user_id": me["user_id"]}}
+    )
+    return detail
+
+
+@api_router.post("/lobby-invites/{invite_id}/decline")
+async def decline_lobby_invite(invite_id: str, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    inv = await db.lobby_invites.find_one({"id": invite_id}, {"_id": 0})
+    if not inv or inv["invited_user_id"] != me["user_id"]:
+        raise HTTPException(status_code=404, detail="Invite not found")
+    await db.lobby_invites.update_one({"id": invite_id}, {"$set": {"status": "declined"}})
+    return {"status": "declined"}
+
+
 app.include_router(api_router)
 app.add_middleware(
     CORSMiddleware,
@@ -299,6 +946,12 @@ async def startup():
     await db.users.create_index("user_id", unique=True)
     await db.user_sessions.create_index("session_token", unique=True)
     await db.user_sessions.create_index("expires_at", expireAfterSeconds=0)
+    await db.friendships.create_index([("requester_user_id", 1), ("receiver_user_id", 1)])
+    await db.lobbies.create_index("id", unique=True)
+    await db.lobbies.create_index("invite_token")
+    await db.lobby_members.create_index([("lobby_id", 1), ("user_id", 1)])
+    await db.lobby_invites.create_index("invited_user_id")
+    await db.lobby_invites.create_index("lobby_id")
 
 
 @app.on_event("shutdown")

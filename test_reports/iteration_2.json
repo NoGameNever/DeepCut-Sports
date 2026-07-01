@@ -1,0 +1,67 @@
+{
+  "summary": "Backend-only testing for the new Friends + Multiplayer Lobby feature (share-sheet invites, in-app friend invites, no SMS). Extended /app/backend/tests/conftest.py with a session-scoped 4-user pool + Mongo cleanup, and added /app/backend/tests/test_friends_lobby.py with 20 focused tests across Friends, Lobby, Invite validate+join, Friend lobby invites, and Game flow (start/game/score/leave). All 20 new tests pass; the pre-existing 13 tests continue to pass. Full suite: 33/33 PASS (100%). LLM-driven start-lobby now works — EMERGENT_LLM_KEY budget top-up from last iteration resolved the earlier /api/quiz/generate 502.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/friends/block",
+        "issue": "Block does not verify target user exists (unlike /friends/request which 404s). A user could 'block' a non-existent user_id and it would silently succeed. Low impact but inconsistent."
+      },
+      {
+        "endpoint": "POST /api/lobbies/{id}/leave",
+        "issue": "Endpoint returns 200 {status:'left'} even when caller is not a member of the lobby (silent no-op via delete_one). Consider returning 404 to reflect reality; not blocking."
+      },
+      {
+        "endpoint": "GET /api/join/{token}",
+        "issue": "Public endpoint returns 200 with {valid:false, reason:'invalid'} for unknown tokens rather than 404. Acceptable per spec but noting the divergence from typical REST conventions."
+      },
+      {
+        "endpoint": "POST /api/lobbies/{id}/invite/friend",
+        "issue": "When target is a blocked relation, endpoint returns 403 'You can only invite friends' (rel == 'blocked_by_me' or 'blocked_me'). Message could be more specific, but behavior is correct."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/conftest.py",
+    "/app/backend/tests/test_backend_api.py",
+    "/app/backend/tests/test_friends_lobby.py",
+    "/app/test_reports/pytest/pytest_results.xml",
+    "/app/test_reports/pytest/friends_lobby_results.xml"
+  ],
+  "action_items": [
+    "Optional: 404 on /friends/block when user_id doesn't exist (mirror /friends/request behavior).",
+    "Optional: return 404 from /lobbies/{id}/leave when caller isn't a member instead of silent 200.",
+    "No blocking issues — feature is production-ready from an API contract standpoint."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 960 lines — still a single file but well organized into sections (Auth / Quiz / Helpers / Friends / Lobby / Invites). Consider splitting into routers per domain if it grows further.",
+    "Idempotent join, host-only start, host-leaving-expires-lobby, and completion-when-all-finished are all implemented cleanly via _do_join / _require_member / _member_count helpers.",
+    "Timezone handling is defensive: _aware() re-attaches UTC to naive datetimes read from Mongo before comparisons — good.",
+    "Secure invite tokens use secrets.token_urlsafe(9) (~72 bits) — appropriate.",
+    "All Mongo reads use projection {'_id': 0} — no ObjectId leakage in responses.",
+    "GET /api/lobbies/{id}/game returns full questions including correct_index — intentional per code comment ('client needs correct_index to score locally'); acceptable for MVP but note it enables cheating via API sniffing. Consider server-side scoring if this becomes competitive.",
+    "invited_phone_number field still persisted on lobby_invites docs (always None) — schema leftover from pre-SMS-removal design; harmless.",
+    "_expire_if_needed mutates the passed dict AND updates DB — fine, but callers rely on this side effect (e.g., validate_invite). Documented via naming.",
+    "No rate limiting on /friends/request or /users/search — potential abuse vector; out of scope for MVP.",
+    "@app.on_event('startup') / 'shutdown' are deprecated in FastAPI in favor of lifespan handlers — cosmetic warning, still functional."
+  ],
+  "updated_files": [
+    "/app/backend/tests/conftest.py (extended with _insert_user helper and session-scoped users_pool fixture)",
+    "/app/backend/tests/test_friends_lobby.py (new — 20 tests for friends + lobby + invite + game flow)"
+  ],
+  "success_rate": {
+    "backend": "100% (33/33 pytest tests passing — 13 legacy + 20 new)",
+    "frontend": "N/A (backend-only per request)"
+  },
+  "seed_data_creation": "Session-scoped pool of 4 TEST_ users + sessions inserted via users_pool fixture. Each test class cleans friendships/lobbies/members/invites for these users before running to keep tests independent. Full teardown at end of session removes users, sessions, friendships, and any lobbies/members/invites they created. All TEST data is prefixed with 'TEST_' or 'user_TEST_' for easy identification. No production data touched.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Reuse /app/backend/tests/test_friends_lobby.py. The users_pool fixture in conftest.py provides 4 pre-seeded users each with (user_id, token, email, name). Use _h(token) helper in the test file to build auth headers. All tests reset friendships and lobbies for the pool users at the start of each test where needed. For the 'started' branch of invite validation, the test falls back to forcing lobby status to 'active' in DB if the LLM start call fails, so it works even if EMERGENT_LLM_KEY budget is exhausted.",
+  "rca_of_issue": "N/A — no bugs. Prior iteration's /api/quiz/generate 502 is resolved (EMERGENT_LLM_KEY budget was topped up as noted in the review request); TestQuizGenerate::test_generates_questions and TestGameFlow::test_start_and_game_and_score_and_completion both now pass end-to-end with real LLM calls."
+}

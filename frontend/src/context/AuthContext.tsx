@@ -20,7 +20,7 @@ type AuthState = {
   user: User | null;
   loading: boolean;
   signingIn: boolean;
-  signIn: () => Promise<void>;
+  signIn: (redirectPath?: string) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -82,11 +82,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, [processSessionId, refresh]);
 
-  const signIn = useCallback(async () => {
+  const signIn = useCallback(async (redirectPath?: string) => {
     setSigningIn(true);
     try {
       if (Platform.OS === "web" && typeof window !== "undefined") {
-        const redirect = window.location.origin + "/";
+        const redirect = window.location.origin + (redirectPath || "/");
         window.location.href = `${EMERGENT_AUTH}?redirect=${encodeURIComponent(redirect)}`;
         return;
       }
