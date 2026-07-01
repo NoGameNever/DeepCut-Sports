@@ -1,0 +1,183 @@
+{
+  "app_name": "SportsTriviaBlitz",
+  "personality": "7 Dark-First Utility DARK",
+  "personality_one_liner": "A sharp, tactical, and highly responsive command-center for competitive sports trivia, driven by live metrics and energetic accents.",
+  "color": {
+    "surface": "#0F1115",
+    "onSurface": "#FFFFFF",
+    "surfaceSecondary": "#1C1F26",
+    "onSurfaceSecondary": "#A1A7B3",
+    "surfaceTertiary": "#2A2E38",
+    "onSurfaceTertiary": "#8A91A1",
+    "surfaceInverse": "#FFFFFF",
+    "onSurfaceInverse": "#0F1115",
+    "brand": "#FF4D00",
+    "brandPrimary": "#FF4D00",
+    "onBrandPrimary": "#FFFFFF",
+    "brandSecondary": "#CC3E00",
+    "onBrandSecondary": "#FFFFFF",
+    "brandTertiary": "#401A0A",
+    "onBrandTertiary": "#FF8C5A",
+    "success": "#00D084",
+    "onSuccess": "#003320",
+    "warning": "#FFB300",
+    "onWarning": "#4D3600",
+    "error": "#FF3B30",
+    "onError": "#4D0F0A",
+    "border": "#2A2E38",
+    "borderStrong": "#3D4351",
+    "divider": "#1F232B"
+  },
+  "typography": {
+    "displayFontFamily": "Barlow Condensed",
+    "textFontFamily": "IBM Plex Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24
+    }
+  },
+  "spacing": {
+    "rule": "Use tight, intentional spacing. No oversized padding. Maintain strict structural alignment for rapid scanning.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 4,
+    "md": 8,
+    "lg": 12,
+    "pill": 999
+  },
+  "shadow_tier": "0",
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": false,
+    "do's": [
+      "Use solid surfaceSecondary and surfaceTertiary for elevation.",
+      "Use tinted brand backgrounds for active states instead of blur."
+    ],
+    "dont's": [
+      "No blur or frosted glass. Clarity and performance beat aesthetics for this utility personality."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "solid surfaceSecondary",
+      "android": "solid surfaceSecondary",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "haptics": {
+    "events": {
+      "tap_answer_option": "light",
+      "answer_correct": "success",
+      "answer_wrong": "error",
+      "timer_tick_last_5s": "light",
+      "select_category": "medium",
+      "submit_quiz": "heavy"
+    }
+  },
+  "screens": [
+    {
+      "name": "Login",
+      "purpose": "High-impact entry point featuring Google Sign-In.",
+      "states": {
+        "loading": "Dark spinner over the stadium hero background.",
+        "empty": "N/A",
+        "error": "Error toast with retry option."
+      },
+      "layout": "Full-bleed background image (`login_hero`) with a heavy gradient-to-dark scrim (top 0% to bottom 90% surface inverse logic, wait, background is dark so transparent to surface). Text sits in the bottom 30%. Large display typography for 'TRIVIA BLITZ'. A wide, pill-shaped Google Sign-In button using surfaceInverse."
+    },
+    {
+      "name": "Home Dashboard",
+      "purpose": "Command center to view current rank and select a sports category.",
+      "states": {
+        "loading": "Skeleton grids for categories.",
+        "empty": "N/A",
+        "error": "Failed to load categories error message with Retry CTA."
+      },
+      "layout": "Top section: Profile summary (Avatar, Total Score, Global Rank). Below: 'Select Sport' section using a 2-column grid. Cards are sharp (radius md), surfaceSecondary with a brandTertiary tinted icon container. Tapping a card opens a sharp bottom sheet to select Difficulty (Easy, Medium, Hard) as segmented controls, and a 'Start Match' CTA pinned to the bottom."
+    },
+    {
+      "name": "Quiz Gameplay",
+      "purpose": "Immersive, distraction-free trivia match with live countdown.",
+      "states": {
+        "loading": "Preparing match spinner.",
+        "empty": "N/A",
+        "error": "Connection lost error overlay."
+      },
+      "layout": "Top header: 'Quit' button left, 'Score: XX' right. Below header: Large circular timer (using brandPrimary, turning error red at <5s) with huge Barlow Condensed countdown inside. Middle: Question text in IBM Plex Sans (xl, weight 500). Bottom: 4 answer buttons stacked vertically. Buttons are surfaceSecondary with a 0.5pt border. On select, border highlights. Correct answer flips to success background/border, wrong flips to error. Bottom-most edge: persistent progress bar."
+    },
+    {
+      "name": "Results Summary",
+      "purpose": "Post-match breakdown of performance and score calculation.",
+      "states": {
+        "loading": "Calculating score animation...",
+        "empty": "N/A",
+        "error": "Failed to sync score error."
+      },
+      "layout": "Top: 'Match Over' large display text. Middle: Stat grid (Accuracy, Time Bonus, Total Points) using stacked metrics (Barlow Condensed numbers, small IBM Plex Sans labels). Bottom: Two side-by-side buttons: 'Play Again' (brandPrimary) and 'Leaderboard' (surfaceSecondary)."
+    },
+    {
+      "name": "Global Leaderboard",
+      "purpose": "Ranked view of top players and the user's relative position.",
+      "states": {
+        "loading": "Skeleton rows.",
+        "empty": "No rankings available yet - be the first!",
+        "error": "Failed to load leaderboard."
+      },
+      "layout": "Top section: Blurred podium image background with gradient scrim. Displays Top 3 users in staggered vertical blocks. Below: Scrollable ranked list. Rows are surfaceSecondary, sharp edges, with Rank #, Avatar, Name, and Score. The current user's rank is pinned as a sticky row at the bottom."
+    },
+    {
+      "name": "Profile",
+      "purpose": "User's historical performance, stats, and settings.",
+      "states": {
+        "loading": "Skeleton stats.",
+        "empty": "Play a match to see your stats.",
+        "error": "Failed to load profile."
+      },
+      "layout": "Cover image (`profile_cover`) with gradient scrim. Avatar overlaps the bottom edge of the cover. Below: 'Career Stats' grid (Total Matches, Win Rate, Best Category). Bottom: Settings list rows (Sound, Haptics, Logout)."
+    }
+  ],
+  "images": {
+    "login_hero": {
+      "url": "https://images.pexels.com/photos/30566478/pexels-photo-30566478.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+      "alt": "Dramatic stadium spotlight beam in black and white"
+    },
+    "quiz_bg_texture": {
+      "url": "https://images.unsplash.com/photo-1533135091724-62cc5402aa20",
+      "alt": "Dark abstract wavy lines texture"
+    },
+    "leaderboard_podium": {
+      "url": "https://images.unsplash.com/flagged/photo-1578928534298-9747fc52ec97",
+      "alt": "Dark minimalist trophy podium"
+    },
+    "profile_cover": {
+      "url": "https://images.unsplash.com/photo-1509486432407-f8fb9cc99acd",
+      "alt": "Black running track with white lines"
+    }
+  },
+  "instructions_to_main_agent": [
+    "Strictly adhere to the 7 Dark-First Utility personality: prefer sharp corners (sm/md radius), solid dark surfaces (surfaceSecondary), and zero blur/glassmorphism.",
+    "Implement the gradient-to-dark scrim pattern (transparent to surface color) over all full-bleed backgrounds like the Login Hero and Profile Cover, ensuring the bottom stop is >= 70% opacity for text readability.",
+    "Typography: Use Barlow Condensed (weight 500) strictly for numeric metrics, scores, countdown timers, and major display headers. Use IBM Plex Sans (weight 400/500) for all other UI text, questions, and buttons.",
+    "For the Trivia Gameplay screen, the 4 answer buttons must have defined active states: default (surfaceSecondary + border), correct (success border + onSuccess text), wrong (error border + onError text).",
+    "On the Home Dashboard, use a 2-column grid for the sports categories. Each card must have a tinted icon container (brandTertiary bg with brandPrimary icon) - do not use raw icons.",
+    "In the Leaderboard, the current user's rank MUST be a sticky row at the bottom of the screen, sitting above the bottom tab bar.",
+    "Integrate the 'haptics' block accurately during interactions, especially the timer tick for the last 5 seconds and answer selections.",
+    "Never use blue/indigo/purple colors as per the prompt rules; rely entirely on the provided Ember/Signal Red accent against the Obsidian dark palette."
+  ]
+}
