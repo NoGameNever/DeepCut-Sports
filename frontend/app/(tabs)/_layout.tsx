@@ -1,0 +1,46 @@
+import { Tabs } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { Platform } from "react-native";
+import { colors, fonts } from "@/src/theme/theme";
+
+export default function TabsLayout() {
+  return (
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: colors.brandPrimary,
+        tabBarInactiveTintColor: colors.onSurfaceTertiary,
+        tabBarStyle: {
+          backgroundColor: colors.surfaceSecondary,
+          borderTopColor: colors.divider,
+          borderTopWidth: 1,
+          height: Platform.OS === "ios" ? 88 : 64,
+          paddingTop: 6,
+        },
+        tabBarLabelStyle: { fontFamily: fonts.bodyMedium, fontSize: 11 },
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "Play",
+          tabBarIcon: ({ color, size }) => <Ionicons name="game-controller" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="leaderboard"
+        options={{
+          title: "Ranks",
+          tabBarIcon: ({ color, size }) => <Ionicons name="trophy" size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Profile",
+          tabBarIcon: ({ color, size }) => <Ionicons name="person" size={size} color={color} />,
+        }}
+      />
+    </Tabs>
+  );
+}
