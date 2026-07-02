@@ -1308,7 +1308,7 @@ async def my_lobby_invites(authorization: Optional[str] = Header(None)):
             "host_name": host["name"] if host else "A friend",
             "host_picture": host["picture"] if host else None,
             "member_count": counts.get(lobby["id"], 0),
-            "max_players": lobby["max_players"],
+            "max_players": (lobby.get("settings") or DEFAULT_SETTINGS).get("max_players", MAX_PLAYERS),
         })
     return out
 
