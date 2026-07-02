@@ -472,10 +472,7 @@ def _is_online(user: dict) -> bool:
     return bool(ls and (_now() - ls) < ONLINE_WINDOW)
 
 
-async def _public_user(user_id: str):
-    u = await db.users.find_one({"user_id": user_id}, {"_id": 0})
-    if not u:
-        return None
+def _public_user_from_doc(u: dict):
     return {
         "user_id": u["user_id"],
         "name": _effective_name(u),
@@ -483,6 +480,46 @@ async def _public_user(user_id: str):
         "picture": _effective_picture(u),
         "online": _is_online(u),
     }
+
+
+async def _public_user(user_id: str):
+    u = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not u:
+        return None
+    return _public_user_from_doc(u)
+
+
+async def _public_users_map(user_ids: list) -> dict:
+    """Batch-load public user objects for a list of ids in a single query."""
+    ids = list({uid for uid in user_ids if uid})
+    if not ids:
+        return {}
+    docs = await db.users.find({"user_id": {"$in": ids}}, {"_id": 0}).to_list(len(ids))
+    return {u["user_id"]: _public_user_from_doc(u) for u in docs}
+
+
+async def _relations_map(me: str, other_ids: list) -> dict:
+    """Batch-load relationship status of each other_id relative to `me`."""
+    ids = [uid for uid in other_ids if uid]
+    if not ids:
+        return {}
+    docs = await db.friendships.find({
+        "$or": [
+            {"requester_user_id": me, "receiver_user_id": {"$in": ids}},
+            {"receiver_user_id": me, "requester_user_id": {"$in": ids}},
+        ]
+    }, {"_id": 0}).to_list(len(ids) * 2)
+    out = {uid: "none" for uid in ids}
+    for f in docs:
+        other = f["receiver_user_id"] if f["requester_user_id"] == me else f["requester_user_id"]
+        status = f["status"]
+        if status == "accepted":
+            out[other] = "friends"
+        elif status == "blocked":
+            out[other] = "blocked_by_me" if f["requester_user_id"] == me else "blocked_me"
+        elif status == "pending":
+            out[other] = "request_sent" if f["requester_user_id"] == me else "request_received"
+    return out
 
 
 async def _friendship_between(a: str, b: str):
@@ -521,20 +558,25 @@ async def _expire_if_needed(lobby: dict):
 
 async def _lobby_detail(lobby: dict, me: str):
     members = await db.lobby_members.find({"lobby_id": lobby["id"]}, {"_id": 0}).sort("joined_at", 1).to_list(10)
-    member_out = []
-    for m in members:
-        pu = await _public_user(m["user_id"])
-        if pu:
-            pu.update({"role": m["role"], "score": m.get("score"), "finished": m.get("finished", False)})
-            member_out.append(pu)
-    # pending friend invites (not yet accepted)
     invites = await db.lobby_invites.find(
         {"lobby_id": lobby["id"], "invite_type": "friend", "status": "pending"}, {"_id": 0}
     ).to_list(10)
+    users_map = await _public_users_map(
+        [m["user_id"] for m in members] + [inv["invited_user_id"] for inv in invites]
+    )
+    member_out = []
+    for m in members:
+        pu = users_map.get(m["user_id"])
+        if pu:
+            pu = dict(pu)
+            pu.update({"role": m["role"], "score": m.get("score"), "finished": m.get("finished", False)})
+            member_out.append(pu)
+    # pending friend invites (not yet accepted)
     pending_friends = []
     for inv in invites:
-        pu = await _public_user(inv["invited_user_id"])
+        pu = users_map.get(inv["invited_user_id"])
         if pu:
+            pu = dict(pu)
             pu["invite_id"] = inv["id"]
             pending_friends.append(pu)
     s = lobby.get("settings") or DEFAULT_SETTINGS
@@ -807,6 +849,7 @@ async def search_users(q: str = "", authorization: Optional[str] = Header(None))
         {"$or": [{"name": rx}, {"username": rx}, {"email": rx}, {"phone": rx}], "user_id": {"$ne": me["user_id"]}},
         {"_id": 0},
     ).limit(20).to_list(20)
+    relations = await _relations_map(me["user_id"], [u["user_id"] for u in docs])
     out = []
     for u in docs:
         out.append({
@@ -815,7 +858,7 @@ async def search_users(q: str = "", authorization: Optional[str] = Header(None))
             "tagline": u.get("tagline"),
             "picture": _effective_picture(u),
             "online": _is_online(u),
-            "relation": await _relation_status(me["user_id"], u["user_id"]),
+            "relation": relations.get(u["user_id"], "none"),
         })
     return out
 
@@ -919,12 +962,12 @@ async def list_friends(authorization: Optional[str] = Header(None)):
         {"status": "accepted", "$or": [{"requester_user_id": me["user_id"]}, {"receiver_user_id": me["user_id"]}]},
         {"_id": 0},
     ).to_list(200)
-    out = []
-    for f in docs:
-        other = f["receiver_user_id"] if f["requester_user_id"] == me["user_id"] else f["requester_user_id"]
-        pu = await _public_user(other)
-        if pu:
-            out.append(pu)
+    others = [
+        f["receiver_user_id"] if f["requester_user_id"] == me["user_id"] else f["requester_user_id"]
+        for f in docs
+    ]
+    users_map = await _public_users_map(others)
+    out = [users_map[o] for o in others if o in users_map]
     out.sort(key=lambda x: (not x["online"], x["name"].lower()))
     return out
 
@@ -935,10 +978,12 @@ async def friend_requests(authorization: Optional[str] = Header(None)):
     docs = await db.friendships.find(
         {"status": "pending", "receiver_user_id": me["user_id"]}, {"_id": 0}
     ).to_list(100)
+    users_map = await _public_users_map([f["requester_user_id"] for f in docs])
     out = []
     for f in docs:
-        pu = await _public_user(f["requester_user_id"])
+        pu = users_map.get(f["requester_user_id"])
         if pu:
+            pu = dict(pu)
             pu["friendship_id"] = f["id"]
             out.append(pu)
     return out
@@ -1236,19 +1281,33 @@ async def my_lobby_invites(authorization: Optional[str] = Header(None)):
     docs = await db.lobby_invites.find(
         {"invite_type": "friend", "invited_user_id": me["user_id"], "status": "pending"}, {"_id": 0}
     ).to_list(50)
+    lobby_ids = [inv["lobby_id"] for inv in docs]
+    lobbies = await db.lobbies.find(
+        {"id": {"$in": lobby_ids}, "status": "waiting"}, {"_id": 0}
+    ).to_list(len(lobby_ids) or 1)
+    lobby_map = {lb["id"]: lb for lb in lobbies}
+    hosts_map = await _public_users_map([lb["creator_user_id"] for lb in lobbies])
+    # batch member counts via aggregation
+    counts = {}
+    if lobbies:
+        agg = await db.lobby_members.aggregate([
+            {"$match": {"lobby_id": {"$in": list(lobby_map.keys())}}},
+            {"$group": {"_id": "$lobby_id", "n": {"$sum": 1}}},
+        ]).to_list(len(lobby_map))
+        counts = {row["_id"]: row["n"] for row in agg}
     out = []
     for inv in docs:
-        lobby = await db.lobbies.find_one({"id": inv["lobby_id"]}, {"_id": 0})
-        if not lobby or lobby["status"] != "waiting":
+        lobby = lobby_map.get(inv["lobby_id"])
+        if not lobby:
             continue
-        host = await _public_user(lobby["creator_user_id"])
+        host = hosts_map.get(lobby["creator_user_id"])
         out.append({
             "invite_id": inv["id"],
             "lobby_id": lobby["id"],
             "sport": ((lobby.get("settings") or DEFAULT_SETTINGS).get("selected_categories") or ["general"])[0],
             "host_name": host["name"] if host else "A friend",
             "host_picture": host["picture"] if host else None,
-            "member_count": await _member_count(lobby["id"]),
+            "member_count": counts.get(lobby["id"], 0),
             "max_players": lobby["max_players"],
         })
     return out

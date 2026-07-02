@@ -1,0 +1,56 @@
+{
+  "summary": "Backend-only regression testing of the batch-loading refactor (helpers _public_user_from_doc/_public_users_map/_relations_map) covering GET /api/users/search, /api/friends, /api/friends/requests, GET /api/lobbies/{id}, and GET /api/lobby-invites, plus the friend-request lifecycle. Added /app/backend/tests/test_batch_refactor.py with 13 focused tests. Results: 12/13 pass. 1 REGRESSION FOUND: GET /api/lobby-invites returns 500 (KeyError: 'max_players') for any pending invite whose lobby was created via POST /api/lobbies. This is caused by the refactored code at server.py:1311 reading lobby['max_players'] directly instead of settings.max_players. This also breaks the previously-passing test_friends_lobby.py::TestFriendLobbyInvite::test_lobby_invites_list_accept_decline. Full suite: 44/46 pytest tests pass. Both failures share the same root cause.",
+  "backend_issues": {
+    "critical": [
+      {
+        "endpoint": "GET /api/lobby-invites",
+        "issue": "KeyError: 'max_players' -> 500 Internal Server Error for any user whose pending friend invites reference a lobby created through POST /api/lobbies (which stores max_players only inside settings, not as a top-level field). Regression introduced by the batch-loading refactor at /app/backend/server.py:1311. Fix: replace `\"max_players\": lobby[\"max_players\"]` with `\"max_players\": (lobby.get('settings') or DEFAULT_SETTINGS).get('max_players', MAX_PLAYERS)` to mirror _lobby_detail (server.py:591). This blocks the entire in-app lobby-invites listing feature.",
+        "priority": "CRITICAL"
+      }
+    ],
+    "minor": [
+      {
+        "endpoint": "GET /api/lobby-invites",
+        "issue": "Aggregation-based member_count query is called with `to_list(len(lobby_map))` — when lobby_map is empty this becomes `to_list(0)`. Not currently hit because the code is inside `if lobbies:` guard, but keep an eye on it."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_batch_refactor.py",
+    "/app/backend/tests/test_friends_lobby.py",
+    "/app/backend/tests/test_backend_api.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/batch_refactor_results.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "FIX (1 line): /app/backend/server.py:1311 — replace `\"max_players\": lobby[\"max_players\"]` with `\"max_players\": (lobby.get('settings') or DEFAULT_SETTINGS).get('max_players', MAX_PLAYERS)`. This unblocks GET /api/lobby-invites and restores the accept/decline flow.",
+    "After the fix, re-run: `pytest /app/backend/tests/test_batch_refactor.py /app/backend/tests/test_friends_lobby.py -v` — expect 46/46 pass."
+  ],
+  "critical_code_review_comments": [
+    "server.py:1311 lobby-invites — the batch refactor read `lobby[\"max_players\"]` which is not a top-level field on any freshly-created lobby (it lives only in settings). This kind of drift-from-schema is exactly what _lobby_detail (line 591) avoids by going through `(lobby.get('settings') or DEFAULT_SETTINGS).get(...)`. Suggest reusing a small helper `_lobby_max_players(lobby)` to prevent future divergence.",
+    "_public_users_map correctly de-duplicates via set() and uses `$in` — nice. Consider passing a `projection` beyond just `_id: 0` (e.g., only user_id, name, picture, tagline, last_seen) to reduce over-fetch when the users collection grows.",
+    "_relations_map handles all five relation states (none/friends/request_sent/request_received/blocked_by_me/blocked_me) symmetrically — verified in tests. No self-relation edge case because /users/search excludes self via `user_id: {'$ne': me}` before calling the map.",
+    "_lobby_detail: to_list(10) hard-cap on members & invites — safe since max_players is capped at MAX_PLAYERS, but the invites limit could truncate lobbies with many pending friend invites. Consider using settings.max_players * 2 or a higher bound.",
+    "lobby-invites endpoint silently drops lobbies where `lobby_map.get(inv['lobby_id'])` is None (i.e., non-waiting lobbies) which is correct, but there's no cleanup of stale pending invites — invites for started/expired lobbies remain in DB until acted on.",
+    "Minor: `hosts_map = await _public_users_map([lb['creator_user_id'] for lb in lobbies])` is called even when `lobbies` is empty; _public_users_map short-circuits on empty ids so it's fine."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_batch_refactor.py (new — 13 tests for batch-loading refactor)"
+  ],
+  "success_rate": {
+    "backend": "95.6% (44/46 total pytest tests) — 12/13 in the new refactor suite pass; the 1 failure and 1 collateral failure in test_friends_lobby share a single root cause (server.py:1311).",
+    "frontend": "N/A (backend-only per request)"
+  },
+  "seed_data_creation": "Reused session-scoped users_pool fixture (4 TEST_ users) from conftest.py. Each test class cleans friendships + lobbies+ members + invites for the pool up front via _cleanup_all(). Session teardown removes users/sessions/friendships/lobbies. All TEST data prefixed with 'TEST_' or 'user_TEST_'.",
+  "retest_needed": true,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "The regression is a single-line bug at server.py:1311. After the main agent applies the fix, the two failing tests should pass with no other changes: `pytest backend/tests/test_batch_refactor.py::TestLobbyInvitesList::test_list_shape_and_batch_counts backend/tests/test_friends_lobby.py::TestFriendLobbyInvite::test_lobby_invites_list_accept_decline -v`. All other refactored endpoints (/users/search relations, /friends batch+sort, /friends/requests batch, /lobbies/{id} detail with members+invites, /lobby-invites filtering non-waiting lobbies) already verified correct. The batch_refactor.py suite is stable/idempotent and can be reused indefinitely.",
+  "rca_of_issue": "Reproduction: (1) Create two users, make them friends. (2) User A: POST /api/lobbies with any body. (3) User A: POST /api/lobbies/{id}/invite/friend targeting User B. (4) User B: GET /api/lobby-invites -> 500. Trace: /var/log/supervisor/backend.err.log shows `KeyError: 'max_players'` originating from server.py:1311 inside `my_lobby_invites`. Root cause: lobbies created via POST /api/lobbies (server.py:998-1010) store max_players ONLY inside `settings.max_players` (nested), but the refactored /api/lobby-invites reads `lobby[\"max_players\"]` as if it were a top-level field. Mitigation: change line 1311 to `(lobby.get('settings') or DEFAULT_SETTINGS).get('max_players', MAX_PLAYERS)` — matches the pattern already used in _lobby_detail (line 591) and _do_join (line 1139). No data migration required; existing docs already have settings.max_players from _validate_settings."
+}
