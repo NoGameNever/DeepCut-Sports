@@ -84,6 +84,9 @@ export const api = {
   createLobby: (payload: { sport: string; difficulty: string; timer: string; era: string }) =>
     request<any>("/lobbies", { method: "POST", body: payload }),
   getLobby: (id: string) => request<any>(`/lobbies/${id}`),
+  getLobbySettings: (id: string) => request<any>(`/lobbies/${id}/settings`),
+  updateLobbySettings: (id: string, settings: any) =>
+    request<any>(`/lobbies/${id}/settings`, { method: "PUT", body: { settings } }),
   getInvite: (id: string) =>
     request<{ inviteToken: string; inviteUrl: string; expiresAt: string }>(`/lobbies/${id}/invite`, { method: "POST" }),
   inviteFriend: (id: string, user_id: string) =>

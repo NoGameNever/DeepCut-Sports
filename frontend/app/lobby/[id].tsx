@@ -12,7 +12,7 @@ import { api } from "@/src/api/client";
 import { useAuth } from "@/src/context/AuthContext";
 import { useToast } from "@/src/components/Toast";
 import { UserAvatar } from "@/src/components/UserAvatar";
-import { sportName, sportIcon } from "@/src/constants/sports";
+import { summarize, catIcon, gameTypeLabel } from "@/src/constants/lobbySettings";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
 export default function LobbyRoom() {
@@ -160,8 +160,8 @@ export default function LobbyRoom() {
         <View style={{ alignItems: "center" }}>
           <Text style={styles.headerTitle}>{showStandings ? "STANDINGS" : "LOBBY"}</Text>
           <View style={styles.codeRow}>
-            <MaterialCommunityIcons name={sportIcon(lobby.sport) as any} size={13} color={colors.brandPrimary} />
-            <Text style={styles.codeText}>{sportName(lobby.sport)} · {lobby.code}</Text>
+            <MaterialCommunityIcons name={catIcon(lobby.sport) as any} size={13} color={colors.brandPrimary} />
+            <Text style={styles.codeText}>{gameTypeLabel(lobby.settings?.game_type)} · {lobby.code}</Text>
           </View>
         </View>
         <View style={{ width: 40 }} />
@@ -212,6 +212,29 @@ export default function LobbyRoom() {
                   <Text style={styles.rowSub}>Open slot</Text>
                 </View>
               ))}
+            </View>
+
+            <View style={styles.settingsCard}>
+              <View style={styles.settingsHead}>
+                <Text style={styles.sectionTitle}>GAME SETTINGS</Text>
+                {isHost && lobby.status === "waiting" && (
+                  <Pressable testID="edit-settings-button" onPress={() => router.push(`/lobby/settings/${id}`)} style={styles.editSettingsBtn}>
+                    <Ionicons name="options-outline" size={15} color={colors.onSurface} />
+                    <Text style={styles.editSettingsText}>Edit</Text>
+                  </Pressable>
+                )}
+              </View>
+              <View style={styles.summaryGrid}>
+                {summarize(lobby.settings).map((row) => (
+                  <View key={row.label} style={styles.summaryItem} testID={`summary-${row.label}`}>
+                    <MaterialCommunityIcons name={row.icon as any} size={15} color={colors.brandPrimary} />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.summaryLabel}>{row.label}</Text>
+                      <Text style={styles.summaryValue} numberOfLines={1}>{row.value}</Text>
+                    </View>
+                  </View>
+                ))}
+              </View>
             </View>
 
             {isHost && (
@@ -303,6 +326,14 @@ const styles = StyleSheet.create({
   codeText: { color: colors.onSurfaceTertiary, fontFamily: fonts.bodyMedium, fontSize: fontSize.sm },
   section: { marginBottom: spacing.lg },
   sectionTitle: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm, letterSpacing: 1, marginBottom: spacing.md },
+  settingsCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: spacing.lg, marginBottom: spacing.lg },
+  settingsHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  editSettingsBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: colors.surfaceTertiary, paddingVertical: spacing.xs, paddingHorizontal: spacing.md, borderRadius: radius.pill, marginBottom: spacing.md },
+  editSettingsText: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },
+  summaryGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
+  summaryItem: { flexDirection: "row", alignItems: "center", gap: spacing.sm, width: "46%" },
+  summaryLabel: { color: colors.onSurfaceTertiary, fontFamily: fonts.bodyMedium, fontSize: 10, letterSpacing: 0.5 },
+  summaryValue: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize.base },
   playerRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
   emptySlot: { borderWidth: 1, borderColor: colors.border, borderStyle: "dashed", backgroundColor: "transparent" },
   rowName: { flex: 1, color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg },

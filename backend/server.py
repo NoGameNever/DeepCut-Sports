@@ -537,15 +537,18 @@ async def _lobby_detail(lobby: dict, me: str):
         if pu:
             pu["invite_id"] = inv["id"]
             pending_friends.append(pu)
+    s = lobby.get("settings") or DEFAULT_SETTINGS
     return {
         "id": lobby["id"],
         "code": lobby["code"],
         "status": lobby["status"],
-        "sport": lobby["sport"],
-        "difficulty": lobby["difficulty"],
-        "timer": lobby["timer"],
-        "era": lobby["era"],
-        "max_players": lobby["max_players"],
+        "sport": (s.get("selected_categories") or ["general"])[0],
+        "difficulty": s.get("difficulty"),
+        "timer": s.get("timer_seconds"),
+        "era": s.get("era_filter"),
+        "max_players": s.get("max_players", MAX_PLAYERS),
+        "settings": s,
+        "settings_locked": bool(s.get("settings_locked")),
         "creator_user_id": lobby["creator_user_id"],
         "is_host": lobby["creator_user_id"] == me,
         "invite_token": lobby.get("invite_token"),
@@ -593,16 +596,193 @@ async def _generate_questions(sport, difficulty, era, count=7):
     return out
 
 
+# ---------- Lobby settings ----------
+GAME_TYPES_SUPPORTED = {"classic", "lightning", "streak", "deepcut"}
+GAME_TYPES_COMINGSOON = {"survival", "wager", "team"}
+DIFFICULTIES_SUPPORTED = {"casual", "normal", "hard", "expert", "deepcut", "mixed"}
+DIFFICULTIES_COMINGSOON = {"adaptive"}
+CATEGORIES_VALID = {"nba", "nfl", "mlb", "nhl", "soccer", "college", "combat", "olympics", "general"}
+SUBCATEGORIES_VALID = {
+    "player_stats", "awards", "championships", "drafts", "trades", "jersey_numbers",
+    "stadiums", "teams_played_for", "role_players", "current_season", "historical_eras",
+}
+ERA_FILTERS = {"all", "current", "2020s", "2010s", "2000s", "1990s", "pre1990"}
+ANSWER_FORMATS_SUPPORTED = {"multiple_choice", "true_false", "mixed"}
+ANSWER_FORMATS_COMINGSOON = {"type_in"}
+
+DEFAULT_SETTINGS = {
+    "game_type": "classic",
+    "question_count": 10,
+    "difficulty": "normal",
+    "selected_categories": ["general"],
+    "selected_subcategories": [],
+    "era_filter": "all",
+    "answer_format": "multiple_choice",
+    "timer_seconds": 15,
+    "speed_bonus_enabled": True,
+    "streak_bonus_enabled": True,
+    "wrong_answer_penalty_enabled": False,
+    "final_question_multiplier_enabled": False,
+    "max_players": 4,
+    "friends_only": False,
+    "invite_only": True,
+    "allow_rematch": True,
+    "allow_spectators": False,
+    "settings_locked": False,
+}
+
+CAT_LABEL = {
+    "nba": "NBA basketball", "nfl": "NFL American football", "mlb": "MLB baseball",
+    "nhl": "NHL ice hockey", "soccer": "international soccer/football", "college": "US college sports",
+    "combat": "combat sports (boxing/UFC/MMA)", "olympics": "the Olympic Games", "general": "general sports",
+}
+DIFF_TEXT = {
+    "casual": "very easy, well-known", "normal": "medium", "hard": "hard",
+    "expert": "very hard, expert-level",
+    "deepcut": "extremely obscure deep-cut, focused on backups, role players and little-known facts",
+    "mixed": "of mixed/varying",
+}
+ERA_TEXT = {
+    "all": "across all eras of the sport's history",
+    "current": "from the current season / most recent year only",
+    "2020s": "from the 2020s decade", "2010s": "from the 2010s decade",
+    "2000s": "from the 2000s decade", "1990s": "from the 1990s decade",
+    "pre1990": "from before 1990",
+}
+
+
+def _validate_settings(raw: dict, base: dict = None) -> dict:
+    s = dict(DEFAULT_SETTINGS)
+    if base:
+        s.update(base)
+    if raw:
+        for k, v in raw.items():
+            if k in s and k != "settings_locked":
+                s[k] = v
+
+    gt = s["game_type"]
+    if gt in GAME_TYPES_COMINGSOON:
+        raise HTTPException(status_code=400, detail=f"{gt.title()} mode is coming soon")
+    if gt not in GAME_TYPES_SUPPORTED:
+        raise HTTPException(status_code=400, detail="Invalid game type")
+
+    try:
+        s["question_count"] = int(s["question_count"])
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid question count")
+    if not (5 <= s["question_count"] <= 50):
+        raise HTTPException(status_code=400, detail="Question count must be between 5 and 50")
+
+    df = s["difficulty"]
+    if df in DIFFICULTIES_COMINGSOON:
+        raise HTTPException(status_code=400, detail="Adaptive difficulty is coming soon")
+    if df not in DIFFICULTIES_SUPPORTED:
+        raise HTTPException(status_code=400, detail="Invalid difficulty")
+
+    cats = s["selected_categories"]
+    if not isinstance(cats, list) or not cats:
+        raise HTTPException(status_code=400, detail="Select at least one category")
+    if any(c not in CATEGORIES_VALID for c in cats):
+        raise HTTPException(status_code=400, detail="Invalid category selected")
+
+    subs = s.get("selected_subcategories") or []
+    if not isinstance(subs, list) or any(c not in SUBCATEGORIES_VALID for c in subs):
+        raise HTTPException(status_code=400, detail="Invalid subcategory selected")
+    s["selected_subcategories"] = subs
+
+    if s["era_filter"] not in ERA_FILTERS:
+        raise HTTPException(status_code=400, detail="Invalid era filter")
+
+    af = s["answer_format"]
+    if af in ANSWER_FORMATS_COMINGSOON:
+        raise HTTPException(status_code=400, detail="Type-in answers are coming soon")
+    if af not in ANSWER_FORMATS_SUPPORTED:
+        raise HTTPException(status_code=400, detail="Invalid answer format")
+
+    try:
+        s["timer_seconds"] = int(s["timer_seconds"])
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid timer")
+    if s["timer_seconds"] != 0 and not (5 <= s["timer_seconds"] <= 120):
+        raise HTTPException(status_code=400, detail="Timer must be 0 (none) or between 5 and 120 seconds")
+
+    try:
+        s["max_players"] = int(s["max_players"])
+    except (TypeError, ValueError):
+        raise HTTPException(status_code=400, detail="Invalid max players")
+    if not (2 <= s["max_players"] <= MAX_PLAYERS):
+        raise HTTPException(status_code=400, detail=f"Max players must be between 2 and {MAX_PLAYERS}")
+
+    for b in ("speed_bonus_enabled", "streak_bonus_enabled", "wrong_answer_penalty_enabled",
+              "final_question_multiplier_enabled", "friends_only", "invite_only",
+              "allow_rematch", "allow_spectators"):
+        s[b] = bool(s[b])
+
+    s["settings_locked"] = bool(base.get("settings_locked")) if base else False
+    return s
+
+
+async def _generate_lobby_questions(settings: dict):
+    cats = ", ".join(CAT_LABEL.get(c, c) for c in settings["selected_categories"])
+    diff = "deepcut" if settings["game_type"] == "deepcut" else settings["difficulty"]
+    diff_text = DIFF_TEXT.get(diff, "medium")
+    era_text = ERA_TEXT.get(settings["era_filter"], "across all eras")
+    count = max(3, min(int(settings["question_count"]), 50))
+    subs = settings.get("selected_subcategories") or []
+    sub_text = f" Focus on these angles: {', '.join(subs)}." if subs else ""
+
+    fmt = settings["answer_format"]
+    if fmt == "true_false":
+        fmt_text = ('each item is a factual STATEMENT to judge; "options" MUST be exactly ["True","False"] '
+                    'and "correct_index" is 0 if the statement is true, else 1')
+    elif fmt == "mixed":
+        fmt_text = ('each item is EITHER a 4-option multiple choice (options = 4 distinct strings, correct_index 0-3) '
+                    'OR a true/false (options = ["True","False"], correct_index 0 or 1)')
+    else:
+        fmt_text = 'each item has "options" (array of exactly 4 distinct strings) and "correct_index" (integer 0-3)'
+
+    system = (
+        "You are a sports trivia question generator. You output ONLY valid JSON, no prose, no markdown fences. "
+        "Every question must be factually accurate and unambiguous."
+    )
+    prompt = (
+        f"Generate {count} {diff_text}-difficulty sports trivia questions about {cats}, {era_text}.{sub_text} "
+        f"Vary the topics. Return a JSON array where {fmt_text}. "
+        'Each item also has a "question" key (string). Output only the JSON array.'
+    )
+    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"lobby_{uuid.uuid4().hex}", system_message=system).with_model(
+        "gemini", "gemini-3-flash-preview"
+    )
+    raw = await chat.send_message(UserMessage(text=prompt))
+    items = _parse_json_array(raw)
+    out = []
+    for it in items:
+        opts = it.get("options", [])
+        ci = it.get("correct_index", 0)
+        if not isinstance(opts, list) or len(opts) not in (2, 4):
+            continue
+        if not isinstance(ci, int) or ci < 0 or ci >= len(opts):
+            ci = 0
+        out.append({
+            "id": uuid.uuid4().hex,
+            "question": str(it.get("question", "")).strip(),
+            "options": [str(o) for o in opts],
+            "correct_index": ci,
+        })
+    return out
+
+
 # ---------- Request bodies ----------
 class FriendTargetBody(BaseModel):
     user_id: str
 
 
 class CreateLobbyBody(BaseModel):
-    sport: str
-    difficulty: str = "medium"
-    timer: str = "standard"
-    era: str = "modern"
+    settings: Optional[dict] = None
+
+
+class SettingsBody(BaseModel):
+    settings: dict
 
 
 class JoinBody(BaseModel):
@@ -768,8 +948,7 @@ async def friend_requests(authorization: Optional[str] = Header(None)):
 @api_router.post("/lobbies")
 async def create_lobby(body: CreateLobbyBody, authorization: Optional[str] = Header(None)):
     me = await get_current_user(authorization)
-    if body.sport not in SPORTS or body.difficulty not in DIFFICULTIES or body.era not in ERAS or body.timer not in TIMERS:
-        raise HTTPException(status_code=400, detail="Invalid lobby settings")
+    settings = _validate_settings(body.settings or {})
     lobby_id = uuid.uuid4().hex
     lobby = {
         "id": lobby_id,
@@ -777,13 +956,10 @@ async def create_lobby(body: CreateLobbyBody, authorization: Optional[str] = Hea
         "code": _gen_code(),
         "invite_token": _gen_token(),
         "status": "waiting",
-        "sport": body.sport,
-        "difficulty": body.difficulty,
-        "timer": body.timer,
-        "era": body.era,
-        "max_players": MAX_PLAYERS,
+        "settings": settings,
         "questions": None,
         "created_at": _now(),
+        "updated_at": _now(),
         "expires_at": _now() + LOBBY_TTL,
     }
     await db.lobbies.insert_one(lobby)
@@ -797,6 +973,28 @@ async def create_lobby(body: CreateLobbyBody, authorization: Optional[str] = Hea
         "joined_at": _now(),
     })
     return await _lobby_detail(lobby, me["user_id"])
+
+
+@api_router.get("/lobbies/{lobby_id}/settings")
+async def get_lobby_settings(lobby_id: str, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    lobby = await _require_member(lobby_id, me["user_id"])
+    s = lobby.get("settings") or DEFAULT_SETTINGS
+    return {"settings": s, "is_host": lobby["creator_user_id"] == me["user_id"], "locked": bool(s.get("settings_locked"))}
+
+
+@api_router.put("/lobbies/{lobby_id}/settings")
+async def update_lobby_settings(lobby_id: str, body: SettingsBody, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    lobby = await _require_member(lobby_id, me["user_id"])
+    if lobby["creator_user_id"] != me["user_id"]:
+        raise HTTPException(status_code=403, detail="Only the host can change settings")
+    current = lobby.get("settings") or DEFAULT_SETTINGS
+    if current.get("settings_locked") or lobby["status"] != "waiting":
+        raise HTTPException(status_code=409, detail="Settings are locked — the game has started")
+    new_settings = _validate_settings(body.settings, base=current)
+    await db.lobbies.update_one({"id": lobby_id}, {"$set": {"settings": new_settings, "updated_at": _now()}})
+    return {"settings": new_settings}
 
 
 async def _require_member(lobby_id: str, user_id: str):
@@ -893,7 +1091,7 @@ async def _do_join(lobby: dict, user_id: str):
     existing = await db.lobby_members.find_one({"lobby_id": lobby["id"], "user_id": user_id}, {"_id": 0})
     if existing:
         return await _lobby_detail(lobby, user_id)  # idempotent reconnect
-    if await _member_count(lobby["id"]) >= lobby["max_players"]:
+    if await _member_count(lobby["id"]) >= (lobby.get("settings") or DEFAULT_SETTINGS).get("max_players", MAX_PLAYERS):
         raise HTTPException(status_code=409, detail="This lobby is full")
     await db.lobby_members.insert_one({
         "id": uuid.uuid4().hex,
@@ -919,17 +1117,18 @@ async def validate_invite(token: str):
         return {"valid": False, "reason": "expired", "message": "This invite has expired."}
     if lobby["status"] in ("active", "completed"):
         return {"valid": False, "reason": "started", "message": "This game has already started."}
-    if count >= lobby["max_players"]:
+    s = lobby.get("settings") or DEFAULT_SETTINGS
+    if count >= s.get("max_players", MAX_PLAYERS):
         return {"valid": False, "reason": "full", "message": "This lobby is full."}
     host = await _public_user(lobby["creator_user_id"])
     return {
         "valid": True,
         "lobby_id": lobby["id"],
         "code": lobby["code"],
-        "sport": lobby["sport"],
+        "sport": (s.get("selected_categories") or ["general"])[0],
         "host_name": host["name"] if host else "A player",
         "member_count": count,
-        "max_players": lobby["max_players"],
+        "max_players": s.get("max_players", MAX_PLAYERS),
     }
 
 
@@ -966,15 +1165,23 @@ async def start_lobby(lobby_id: str, authorization: Optional[str] = Header(None)
         raise HTTPException(status_code=409, detail="Game already started")
     if await _member_count(lobby_id) < 2:
         raise HTTPException(status_code=400, detail="Need at least 2 players to start")
+    settings = _validate_settings({}, base=(lobby.get("settings") or DEFAULT_SETTINGS))
     try:
-        questions = await _generate_questions(lobby["sport"], lobby["difficulty"], lobby["era"], 7)
+        questions = await _generate_lobby_questions(settings)
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Lobby question generation failed: {e}")
         raise HTTPException(status_code=502, detail="Couldn't generate questions, try again")
-    if not questions:
-        raise HTTPException(status_code=502, detail="No questions generated")
+    if len(questions) < 3:
+        raise HTTPException(
+            status_code=502,
+            detail="Not enough questions matched your filters. Try broadening categories, era or difficulty.",
+        )
+    settings["settings_locked"] = True
     await db.lobbies.update_one(
-        {"id": lobby_id}, {"$set": {"status": "active", "questions": questions, "started_at": _now()}}
+        {"id": lobby_id},
+        {"$set": {"status": "active", "questions": questions, "settings": settings, "started_at": _now()}},
     )
     await db.lobby_invites.update_many(
         {"lobby_id": lobby_id, "status": "pending"}, {"$set": {"status": "expired"}}
@@ -988,8 +1195,7 @@ async def lobby_game(lobby_id: str, authorization: Optional[str] = Header(None))
     lobby = await _require_member(lobby_id, me["user_id"])
     if lobby["status"] not in ("active", "completed") or not lobby.get("questions"):
         raise HTTPException(status_code=409, detail="Game has not started")
-    # strip nothing — client needs correct_index to score locally
-    return {"questions": lobby["questions"], "timer": lobby["timer"], "era": lobby["era"], "sport": lobby["sport"]}
+    return {"questions": lobby["questions"], "settings": lobby.get("settings") or DEFAULT_SETTINGS}
 
 
 @api_router.post("/lobbies/{lobby_id}/score")
@@ -1005,8 +1211,9 @@ async def submit_lobby_score(lobby_id: str, body: LobbyScoreBody, authorization:
     )
     # also credit global profile stats + leaderboard
     u = await db.users.find_one({"user_id": me["user_id"]}, {"_id": 0})
+    cat = ((lobby.get("settings") or DEFAULT_SETTINGS).get("selected_categories") or ["general"])[0]
     sport_scores = u.get("sport_scores", {}) or {}
-    sport_scores[lobby["sport"]] = sport_scores.get(lobby["sport"], 0) + body.score
+    sport_scores[cat] = sport_scores.get(cat, 0) + body.score
     best_sport = max(sport_scores, key=sport_scores.get) if sport_scores else None
     await db.users.update_one(
         {"user_id": me["user_id"]},
@@ -1038,7 +1245,7 @@ async def my_lobby_invites(authorization: Optional[str] = Header(None)):
         out.append({
             "invite_id": inv["id"],
             "lobby_id": lobby["id"],
-            "sport": lobby["sport"],
+            "sport": ((lobby.get("settings") or DEFAULT_SETTINGS).get("selected_categories") or ["general"])[0],
             "host_name": host["name"] if host else "A friend",
             "host_picture": host["picture"] if host else None,
             "member_count": await _member_count(lobby["id"]),

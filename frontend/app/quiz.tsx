@@ -22,9 +22,14 @@ export default function Quiz() {
   const insets = useSafeAreaInsets();
   const toast = useToast();
 
+  const isLobby = !!lobbyId;
+  const [lobbySettings, setLobbySettings] = useState<any>(null);
+  const [streak, setStreak] = useState(0);
   const [cfgTimer, setCfgTimer] = useState(timer || "standard");
   const [cfgEra, setCfgEra] = useState(era || "modern");
-  const perQuestionSeconds = timerOption(cfgTimer).seconds;
+  const lobbyTimer = lobbySettings?.timer_seconds ?? 15;
+  const noTimer = isLobby && lobbyTimer === 0;
+  const perQuestionSeconds = isLobby ? (lobbyTimer > 0 ? lobbyTimer : 999) : timerOption(cfgTimer).seconds;
   const multiplier = timerOption(cfgTimer).mult * eraOption(cfgEra).mult;
 
   const [questions, setQuestions] = useState<Q[] | null>(null);
@@ -45,9 +50,9 @@ export default function Quiz() {
     try {
       if (lobbyId) {
         const g = await api.lobbyGame(lobbyId);
-        setCfgTimer(g.timer);
-        setCfgEra(g.era);
-        setSecondsLeft(timerOption(g.timer).seconds);
+        setLobbySettings(g.settings);
+        const secs = g.settings.timer_seconds || 0;
+        setSecondsLeft(secs > 0 ? secs : 999);
         setQuestions(g.questions);
       } else {
         const qs = await api.generateQuiz(sport, difficulty, era, 7);
@@ -110,20 +115,32 @@ export default function Quiz() {
       const isCorrect = index === q.correct_index;
       let newScore = score;
       let newCorrect = correctCount;
+      let newStreak = streak;
       if (isCorrect) {
-        const bonus = secondsLeft * 10;
-        newScore = score + Math.round((BASE_POINTS + bonus) * multiplier);
         newCorrect = correctCount + 1;
-        setScore(newScore);
-        setCorrectCount(newCorrect);
+        newStreak = streak + 1;
+        if (isLobby && lobbySettings) {
+          let pts = BASE_POINTS;
+          if (lobbySettings.speed_bonus_enabled && !noTimer) pts += secondsLeft * 5;
+          if (lobbySettings.streak_bonus_enabled) pts += 25 * newStreak;
+          if (lobbySettings.final_question_multiplier_enabled && current === questions.length - 1) pts *= 2;
+          newScore = score + Math.round(pts);
+        } else {
+          newScore = score + Math.round((BASE_POINTS + secondsLeft * 10) * multiplier);
+        }
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
+        newStreak = 0;
+        if (isLobby && lobbySettings?.wrong_answer_penalty_enabled) newScore = Math.max(0, score - 50);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
+      setScore(newScore);
+      setCorrectCount(newCorrect);
+      setStreak(newStreak);
       setSelected(index);
       setTimeout(() => advance(newScore, newCorrect), 1100);
     },
-    [locked, questions, current, score, correctCount, secondsLeft, advance, multiplier]
+    [locked, questions, current, score, correctCount, secondsLeft, advance, multiplier, streak, isLobby, lobbySettings, noTimer]
   );
 
   // timer
@@ -131,6 +148,7 @@ export default function Quiz() {
     if (!questions || locked) return;
     progress.value = 0;
     progress.value = withTiming((current + 1) / questions.length, { duration: 300 });
+    if (noTimer) return;
     intervalRef.current = setInterval(() => {
       setSecondsLeft((s) => {
         if (s <= 1) {
@@ -203,9 +221,21 @@ export default function Quiz() {
       </View>
 
       <View style={styles.timerWrap}>
-        <View style={[styles.timerCircle, { borderColor: timerColor }]}>
-          <Text style={[styles.timerText, { color: timerColor }]} testID="quiz-timer">{secondsLeft}</Text>
-        </View>
+        {noTimer ? (
+          <View style={[styles.timerCircle, { borderColor: colors.brandSecondary }]}>
+            <Ionicons name="infinite" size={40} color={colors.brandSecondary} />
+          </View>
+        ) : (
+          <View style={[styles.timerCircle, { borderColor: timerColor }]}>
+            <Text style={[styles.timerText, { color: timerColor }]} testID="quiz-timer">{secondsLeft}</Text>
+          </View>
+        )}
+        {streak > 1 && (
+          <View style={styles.streakPill} testID="quiz-streak">
+            <Ionicons name="flame" size={13} color={colors.gold} />
+            <Text style={styles.streakText}>{streak} streak</Text>
+          </View>
+        )}
       </View>
 
       <Animated.View key={q.id} entering={FadeIn.duration(300)} style={styles.questionWrap}>
@@ -251,7 +281,8 @@ const styles = StyleSheet.create({
   scorePill: { flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: colors.surfaceSecondary, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.pill },
   scoreText: { color: colors.onSurface, fontFamily: fonts.displayBold, fontSize: fontSize.lg },
   timerWrap: { alignItems: "center", marginTop: spacing.xl },
-  timerCircle: { width: 96, height: 96, borderRadius: 48, borderWidth: 4, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceSecondary },
+  streakPill: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.sm, backgroundColor: colors.surfaceTertiary, paddingVertical: 4, paddingHorizontal: spacing.md, borderRadius: radius.pill },
+  streakText: { color: colors.gold, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },  timerCircle: { width: 96, height: 96, borderRadius: 48, borderWidth: 4, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceSecondary },
   timerText: { fontFamily: fonts.displayBold, fontSize: 46 },
   questionWrap: { marginTop: spacing.xl, minHeight: 90, justifyContent: "center" },
   question: { color: colors.onSurface, fontFamily: fonts.bodyMedium, fontSize: fontSize["2xl"], lineHeight: 32, textAlign: "center" },
