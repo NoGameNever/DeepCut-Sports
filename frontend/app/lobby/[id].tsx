@@ -191,7 +191,7 @@ export default function LobbyRoom() {
                   <UserAvatar uri={m.picture} name={m.name} size={44} online={m.online} />
                   <View style={{ flex: 1 }}>
                     <Text style={styles.rowName} numberOfLines={1}>{m.name}{m.user_id === user?.user_id ? " (You)" : ""}</Text>
-                    <Text style={styles.rowSub}>{m.role === "host" ? "Host" : "Player"}</Text>
+                    <Text style={styles.rowSub}>{m.tagline || (m.role === "host" ? "Host" : "Player")}</Text>
                   </View>
                   {m.role === "host" && <MaterialCommunityIcons name="crown" size={20} color={colors.warning} />}
                 </View>

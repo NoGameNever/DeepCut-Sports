@@ -100,7 +100,7 @@ export default function Leaderboard() {
                 <Avatar uri={item.picture} name={item.name} size={40} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowName} numberOfLines={1}>{item.name}{mine ? " (You)" : ""}</Text>
-                  <Text style={styles.rowMatches}>{item.matches} matches</Text>
+                  <Text style={styles.rowMatches} numberOfLines={1}>{item.tagline || `${item.matches} matches`}</Text>
                 </View>
                 <Text style={styles.rowScore}>{item.total_score}</Text>
               </View>

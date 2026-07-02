@@ -50,7 +50,12 @@ export default function Profile() {
           </View>
         )}
         <Text style={styles.name}>{user?.name || "Player"}</Text>
-        <Text style={styles.email}>{user?.email}</Text>
+        {user?.username ? <Text style={styles.username}>@{user.username}</Text> : null}
+        {user?.tagline ? <Text style={styles.tagline}>&ldquo;{user.tagline}&rdquo;</Text> : <Text style={styles.email}>{user?.email}</Text>}
+        <Pressable testID="edit-profile-button" style={styles.editBtn} onPress={() => router.push("/profile/edit")}>
+          <Ionicons name="create-outline" size={16} color={colors.onSurface} />
+          <Text style={styles.editText}>Edit Profile</Text>
+        </Pressable>
       </View>
 
       <View style={styles.section}>
@@ -98,6 +103,10 @@ const styles = StyleSheet.create({
   avatarFallback: { alignItems: "center", justifyContent: "center" },
   avatarText: { color: colors.brandPrimary, fontFamily: fonts.displayBold, fontSize: 38 },
   name: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize["2xl"], marginTop: spacing.md },
+  username: { color: colors.brandPrimary, fontFamily: fonts.bodyMedium, fontSize: fontSize.base, marginTop: 2 },
+  tagline: { color: colors.onSurfaceSecondary, fontFamily: fonts.body, fontSize: fontSize.base, fontStyle: "italic", marginTop: spacing.xs, textAlign: "center", paddingHorizontal: spacing.xl },
+  editBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: colors.surfaceTertiary, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radius.pill, marginTop: spacing.md },
+  editText: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },
   email: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: fontSize.base, marginTop: 2 },
   section: { paddingHorizontal: spacing.lg, marginTop: spacing.xl },
   sectionTitle: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm, letterSpacing: 1.2, marginBottom: spacing.md },

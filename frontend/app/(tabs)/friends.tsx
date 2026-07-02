@@ -192,7 +192,7 @@ export default function Friends() {
                 <UserAvatar uri={u.picture} name={u.name} size={44} online={u.online} />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowName} numberOfLines={1}>{u.name}</Text>
-                  <Text style={styles.rowSub}>{u.online ? "Online" : "Offline"}</Text>
+                  <Text style={styles.rowSub}>{u.tagline || (u.online ? "Online" : "Offline")}</Text>
                 </View>
                 <Pressable testID={`remove-friend-${u.user_id}`} style={styles.iconBtn} onPress={() => doAction(() => api.removeFriend(u.user_id), "Friend removed")}>
                   <Ionicons name="person-remove-outline" size={18} color={colors.onSurfaceSecondary} />

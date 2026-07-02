@@ -134,6 +134,9 @@ async def auth_session(body: SessionRequest):
             "email": email,
             "name": data.get("name"),
             "picture": data.get("picture"),
+            "username": None,
+            "tagline": None,
+            "avatar": None,
             "total_score": 0,
             "matches": 0,
             "correct_answers": 0,
@@ -142,6 +145,8 @@ async def auth_session(body: SessionRequest):
             "sport_scores": {},
             "created_at": datetime.now(timezone.utc),
         })
+        uname = await _ensure_username(user_id, data.get("name") or email)
+        await db.users.update_one({"user_id": user_id}, {"$set": {"username": uname}})
 
     session_token = data["session_token"]
     await db.user_sessions.update_one(
@@ -155,12 +160,12 @@ async def auth_session(body: SessionRequest):
         upsert=True,
     )
     user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
-    return {"session_token": session_token, "user": user}
+    return {"session_token": session_token, "user": _user_out(user)}
 
 
 @api_router.get("/auth/me")
 async def auth_me(authorization: Optional[str] = Header(None)):
-    return await get_current_user(authorization)
+    return _user_out(await get_current_user(authorization))
 
 
 @api_router.post("/auth/logout")
@@ -169,6 +174,140 @@ async def auth_logout(authorization: Optional[str] = Header(None)):
         token = authorization.split(" ", 1)[1]
         await db.user_sessions.delete_one({"session_token": token})
     return {"ok": True}
+
+
+# ---------- Profile customization ----------
+USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]{3,20}$")
+BANNED_WORDS = {
+    "admin", "root", "fuck", "shit", "bitch", "nigger", "nigga", "cunt",
+    "faggot", "rape", "nazi", "slut", "whore", "dick", "pussy",
+}
+ALLOWED_AVATAR_TYPES = {"image/png", "image/jpeg", "image/jpg", "image/webp"}
+MAX_AVATAR_B64 = 900_000  # ~600KB decoded
+
+
+def _effective_name(u: dict) -> str:
+    return u.get("username") or u.get("name") or "Player"
+
+
+def _effective_picture(u: dict):
+    return u.get("avatar") or u.get("picture")
+
+
+def _contains_banned(text: str) -> bool:
+    low = text.lower()
+    return any(b in low for b in BANNED_WORDS)
+
+
+def _user_out(u: dict) -> dict:
+    return {
+        "user_id": u["user_id"],
+        "email": u.get("email"),
+        "name": _effective_name(u),
+        "username": u.get("username"),
+        "tagline": u.get("tagline"),
+        "picture": _effective_picture(u),
+        "total_score": u.get("total_score", 0),
+        "matches": u.get("matches", 0),
+        "correct_answers": u.get("correct_answers", 0),
+        "total_answers": u.get("total_answers", 0),
+        "best_sport": u.get("best_sport"),
+        "sport_scores": u.get("sport_scores", {}),
+    }
+
+
+async def _ensure_username(user_id: str, base: str) -> str:
+    base = re.sub(r"[^a-zA-Z0-9_]", "", (base or "player").replace(" ", "")).lower()[:16] or "player"
+    if len(base) < 3:
+        base = (base + "player")[:6]
+    candidate, i = base, 0
+    while await db.users.find_one(
+        {"username": {"$regex": f"^{re.escape(candidate)}$", "$options": "i"}, "user_id": {"$ne": user_id}}
+    ):
+        i += 1
+        candidate = f"{base}{i}"
+    return candidate
+
+
+class ProfileUpdate(BaseModel):
+    username: Optional[str] = None
+    tagline: Optional[str] = None
+
+
+class AvatarUpload(BaseModel):
+    image: str
+    content_type: Optional[str] = None
+
+
+@api_router.get("/profile")
+async def get_profile(authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    if not me.get("username"):
+        uname = await _ensure_username(me["user_id"], me.get("name") or me.get("email"))
+        await db.users.update_one({"user_id": me["user_id"]}, {"$set": {"username": uname}})
+        me["username"] = uname
+    return _user_out(me)
+
+
+@api_router.put("/profile")
+async def update_profile(body: ProfileUpdate, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    updates: dict = {}
+
+    if body.username is not None:
+        uname = body.username.strip()
+        if not USERNAME_RE.match(uname):
+            raise HTTPException(status_code=400, detail="Username must be 3-20 letters, numbers or underscores")
+        if _contains_banned(uname):
+            raise HTTPException(status_code=400, detail="That username isn't allowed")
+        clash = await db.users.find_one(
+            {"username": {"$regex": f"^{re.escape(uname)}$", "$options": "i"}, "user_id": {"$ne": me["user_id"]}}
+        )
+        if clash:
+            raise HTTPException(status_code=409, detail="Username is already taken")
+        updates["username"] = uname
+
+    if body.tagline is not None:
+        tag = body.tagline.strip()
+        if len(tag) > 40:
+            raise HTTPException(status_code=400, detail="Tagline must be 40 characters or less")
+        if tag and _contains_banned(tag):
+            raise HTTPException(status_code=400, detail="That tagline isn't allowed")
+        symbols = len(re.findall(r"[^a-zA-Z0-9 ]", tag))
+        if symbols > 5:
+            raise HTTPException(status_code=400, detail="Too many symbols in tagline")
+        updates["tagline"] = tag or None
+
+    if not updates:
+        raise HTTPException(status_code=400, detail="Nothing to update")
+
+    updates["updated_at"] = datetime.now(timezone.utc)
+    await db.users.update_one({"user_id": me["user_id"]}, {"$set": updates})
+    fresh = await db.users.find_one({"user_id": me["user_id"]}, {"_id": 0})
+    return _user_out(fresh)
+
+
+@api_router.post("/profile/avatar")
+async def upload_avatar(body: AvatarUpload, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    raw = body.image.strip()
+    ctype = (body.content_type or "").lower()
+    if raw.startswith("data:"):
+        try:
+            header, _ = raw.split(",", 1)
+            ctype = header.split(";")[0].replace("data:", "").lower()
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid image data")
+    if ctype and ctype not in ALLOWED_AVATAR_TYPES:
+        raise HTTPException(status_code=400, detail="Only PNG, JPG or WEBP images are allowed")
+    if len(raw) > MAX_AVATAR_B64:
+        raise HTTPException(status_code=400, detail="Image is too large (max ~600KB). Try a smaller photo.")
+    data_uri = raw if raw.startswith("data:") else f"data:{ctype or 'image/jpeg'};base64,{raw}"
+    await db.users.update_one(
+        {"user_id": me["user_id"]}, {"$set": {"avatar": data_uri, "updated_at": datetime.now(timezone.utc)}}
+    )
+    fresh = await db.users.find_one({"user_id": me["user_id"]}, {"_id": 0})
+    return _user_out(fresh)
 
 
 # ---------- Quiz ----------
@@ -271,8 +410,9 @@ async def leaderboard(authorization: Optional[str] = Header(None)):
         top.append({
             "rank": i + 1,
             "user_id": u["user_id"],
-            "name": u.get("name") or "Player",
-            "picture": u.get("picture"),
+            "name": _effective_name(u),
+            "tagline": u.get("tagline"),
+            "picture": _effective_picture(u),
             "total_score": u.get("total_score", 0),
             "matches": u.get("matches", 0),
         })
@@ -282,8 +422,9 @@ async def leaderboard(authorization: Optional[str] = Header(None)):
         "me": {
             "rank": my_rank,
             "user_id": me["user_id"],
-            "name": me.get("name") or "Player",
-            "picture": me.get("picture"),
+            "name": _effective_name(me),
+            "tagline": me.get("tagline"),
+            "picture": _effective_picture(me),
             "total_score": me.get("total_score", 0),
             "matches": me.get("matches", 0),
         },
@@ -337,8 +478,9 @@ async def _public_user(user_id: str):
         return None
     return {
         "user_id": u["user_id"],
-        "name": u.get("name") or "Player",
-        "picture": u.get("picture"),
+        "name": _effective_name(u),
+        "tagline": u.get("tagline"),
+        "picture": _effective_picture(u),
         "online": _is_online(u),
     }
 
@@ -482,15 +624,16 @@ async def search_users(q: str = "", authorization: Optional[str] = Header(None))
         return []
     rx = {"$regex": re.escape(q), "$options": "i"}
     docs = await db.users.find(
-        {"$or": [{"name": rx}, {"email": rx}, {"phone": rx}], "user_id": {"$ne": me["user_id"]}},
+        {"$or": [{"name": rx}, {"username": rx}, {"email": rx}, {"phone": rx}], "user_id": {"$ne": me["user_id"]}},
         {"_id": 0},
     ).limit(20).to_list(20)
     out = []
     for u in docs:
         out.append({
             "user_id": u["user_id"],
-            "name": u.get("name") or "Player",
-            "picture": u.get("picture"),
+            "name": _effective_name(u),
+            "tagline": u.get("tagline"),
+            "picture": _effective_picture(u),
             "online": _is_online(u),
             "relation": await _relation_status(me["user_id"], u["user_id"]),
         })
@@ -944,6 +1087,7 @@ app.add_middleware(
 async def startup():
     await db.users.create_index("email", unique=True)
     await db.users.create_index("user_id", unique=True)
+    await db.users.create_index("username")
     await db.user_sessions.create_index("session_token", unique=True)
     await db.user_sessions.create_index("expires_at", expireAfterSeconds=0)
     await db.friendships.create_index([("requester_user_id", 1), ("receiver_user_id", 1)])

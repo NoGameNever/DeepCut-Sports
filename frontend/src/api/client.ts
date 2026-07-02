@@ -58,6 +58,13 @@ export const api = {
   }) => request<any>("/quiz/submit", { method: "POST", body: payload }),
   leaderboard: () => request<any>("/leaderboard"),
 
+  // ----- Profile -----
+  getProfile: () => request<any>("/profile"),
+  updateProfile: (payload: { username?: string; tagline?: string }) =>
+    request<any>("/profile", { method: "PUT", body: payload }),
+  uploadAvatar: (image: string, content_type?: string) =>
+    request<any>("/profile/avatar", { method: "POST", body: { image, content_type } }),
+
   // ----- Friends -----
   searchUsers: (q: string) => request<any[]>(`/users/search?q=${encodeURIComponent(q)}`),
   sendFriendRequest: (user_id: string) =>

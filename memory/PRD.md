@@ -23,6 +23,11 @@ Build a mobile app: sports trivia app. Evolved: AI questions, timed quiz, Google
 - Multiplayer lobby: create, waiting room (polling 3s), invite via native Share Sheet + copy link + in-app friend invites, pending invites, up to 4 players, host-only start (>=2), shared AI quiz, standings; leave/expire; secure random tokens; deep-link join flow (validate → sign-in → auto-join) with full/expired/started/invalid states.
 - Backend fully tested: 33/33 friends+lobby + legacy suite passing.
 
+## Profile customization (2026-07-02)
+- Model: added `username` (unique, 3-20 alnum/_), `tagline` (<=40, banned/symbol validation), `avatar` (base64 data URI), `updated_at`. Effective name = username, effective picture = avatar or Google pic.
+- Endpoints: GET /api/profile (backfills username), PUT /api/profile (username+tagline validation, 400/409 errors), POST /api/profile/avatar (type + ~600KB size validation).
+- Frontend: /profile/edit screen (avatar picker via expo-image-picker + resize/compress to 256px JPEG, preview, permission handling with Open-Settings fallback, username + tagline inputs with counter + suggestion chips, Save/Cancel, loading/error/success). Username + avatar + tagline now render across Profile, friends list, leaderboard, lobby members. Verified via curl + screenshot.
+
 ## Backlog / Next
 - P1: Push-notification lobby invites (on user request), QR-code invites.
 - P1: Production universal links (stathead.gg AASA/assetlinks) after deploy so installed app opens invites directly.
