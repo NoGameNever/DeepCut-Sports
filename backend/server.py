@@ -43,9 +43,9 @@ EMERGENT_SESSION_URL = "https://demobackend.emergentagent.com/auth/v1/env/oauth/
 SPORTS = {
     "soccer": "Soccer / Football",
     "basketball": "Basketball",
-    "cricket": "Cricket",
-    "tennis": "Tennis",
-    "f1": "Formula 1 Motor Racing",
+    "videogames": "Sports Video Games (e.g. Madden, FIFA/EA FC, NBA 2K, MLB The Show, NHL series - covering game history, cover athletes, ratings, features and franchises)",
+    "hockey": "Ice Hockey (NHL)",
+    "golf": "Golf",
     "nfl": "American Football (NFL)",
     "baseball": "Baseball (MLB)",
 }

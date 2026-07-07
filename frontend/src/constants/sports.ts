@@ -7,9 +7,9 @@ export type Sport = {
 export const SPORTS: Sport[] = [
   { key: "soccer", name: "Soccer", icon: "soccer" },
   { key: "basketball", name: "Basketball", icon: "basketball" },
-  { key: "cricket", name: "Cricket", icon: "cricket" },
-  { key: "tennis", name: "Tennis", icon: "tennis" },
-  { key: "f1", name: "Formula 1", icon: "racing-helmet" },
+  { key: "videogames", name: "Sports Video Games", icon: "gamepad-variant" },
+  { key: "hockey", name: "Hockey", icon: "hockey-sticks" },
+  { key: "golf", name: "Golf", icon: "golf" },
   { key: "nfl", name: "NFL", icon: "football" },
   { key: "baseball", name: "Baseball", icon: "baseball" },
 ];
