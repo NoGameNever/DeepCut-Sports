@@ -119,7 +119,7 @@ export default function Leaderboard() {
         <ActivityIndicator color={colors.brandPrimary} style={{ marginTop: spacing.xxl }} />
       ) : (
         <FlatList
-          data={data?.top ?? []}
+          data={scope === "friends" && (data?.top?.length ?? 0) <= 1 ? [] : data?.top ?? []}
           keyExtractor={(item) => item.user_id}
           contentContainerStyle={{ padding: spacing.lg, paddingBottom: 200 }}
           refreshControl={

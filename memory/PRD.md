@@ -36,3 +36,13 @@ Build a mobile app: sports trivia app. Evolved: AI questions, timed quiz, Google
 - P1: Push-notification lobby invites (on user request), QR-code invites.
 - P1: Production universal links (stathead.gg AASA/assetlinks) after deploy so installed app opens invites directly.
 - P2: Real-time (WebSocket) lobby updates instead of polling; friend online presence heartbeat; block-list hardening (404 on missing target).
+
+## XP & Leveling System (June 2026) — DONE
+- Knowledge XP: correct-answer XP by difficulty (10/15/25, deep-cut 40), streak bonuses (3/5/10 → +10/+25/+75), match win +100, achievement rewards. Sources for daily_challenge/prediction_round wired but features not built yet.
+- Player Level: lifetime-XP based, spec curve (L2=100 … L10=4100, then +1000+(L-4)*250; L11=6600). Level rewards at 5/10/15/20/30/40/50.
+- Rank tiers: Casual → Ball Watcher → Ball Knower → Film Grinder → Elite Ball Knower → Hall of Ball → GOAT Status (with taglines).
+- 8 achievements w/ progress tracking + one-time XP (Nostradamus = coming soon). AI tags questions (difficulty/tags/deep_cut).
+- Leaderboards: Global/Friends × All-Time/Weekly (weekly lazy-resets Mondays via ISO week key, past weeks preserved in weekly_history). Ranked by Knowledge XP only.
+- Profile: level card + XP bar, rank card, stats grid, level rewards rail, achievements list. ProgressionModal on level-up/achievement/tier-change (solo results + lobby standings).
+- Backend: /app/backend/progression.py; GET /api/progression; leaderboard?board=; xp_events audit log; 6 seed users (is_seed) for leaderboard demos.
+- Tested: 15/15 backend tests (tests/test_progression.py) + frontend flows verified.
