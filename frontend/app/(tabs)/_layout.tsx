@@ -12,12 +12,12 @@ export default function TabsLayout() {
         tabBarInactiveTintColor: colors.onSurfaceTertiary,
         tabBarStyle: {
           backgroundColor: colors.surfaceSecondary,
-          borderTopColor: colors.divider,
-          borderTopWidth: 1,
+          borderTopColor: colors.borderStrong,
+          borderTopWidth: 2,
           height: Platform.OS === "ios" ? 88 : 64,
           paddingTop: 6,
         },
-        tabBarLabelStyle: { fontFamily: fonts.bodyMedium, fontSize: 11 },
+        tabBarLabelStyle: { fontFamily: fonts.cartoon, fontSize: 13, letterSpacing: 1 },
       }}
     >
       <Tabs.Screen

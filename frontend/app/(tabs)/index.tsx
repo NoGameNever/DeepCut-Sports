@@ -13,6 +13,10 @@ import { api } from "@/src/api/client";
 import { SPORTS, DIFFICULTIES, TIMER_OPTIONS, ERA_OPTIONS, timerOption, eraOption, Sport } from "@/src/constants/sports";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
+// Cartoon-graffiti sticker palette (thick black outlines + vivid flat fills)
+const STICKER_FILLS = ["#FF9F1C", "#2EC4B6", "#9B5DE5", "#06D6A0", "#00B8FF", "#EF476F", "#FFD166"];
+const INK = "#0F0A12";
+
 export default function Home() {
   const { user, refresh } = useAuth();
   const router = useRouter();
@@ -95,34 +99,45 @@ export default function Home() {
         contentContainerStyle={{ padding: spacing.lg, paddingBottom: spacing.xxxl }}
         showsVerticalScrollIndicator={false}
       >
-        <Pressable testID="play-with-friends" style={styles.mpCard} onPress={() => router.push("/lobby/create")}>
-          <View style={styles.mpIcon}>
-            <Ionicons name="people" size={24} color={colors.onBrandPrimary} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.mpTitle}>Play with Friends</Text>
-            <Text style={styles.mpSub}>Create a lobby & invite up to 3 friends</Text>
-          </View>
-          <Ionicons name="chevron-forward" size={20} color={colors.onBrandPrimary} />
-        </Pressable>
+        <View style={styles.stickerShadow}>
+          <Pressable testID="play-with-friends" style={styles.mpCard} onPress={() => router.push("/lobby/create")}>
+            <View style={styles.mpIcon}>
+              <Ionicons name="people" size={24} color={colors.brandPrimary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.mpTitle}>Play With Friends</Text>
+              <Text style={styles.mpSub}>Create a lobby & invite up to 3 friends</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={22} color={INK} />
+          </Pressable>
+        </View>
 
         <Text style={styles.sectionTitle}>QUICK PLAY</Text>
         <View style={styles.grid}>
-          {SPORTS.map((sport, i) => (
-            <Animated.View key={sport.key} entering={FadeInDown.delay(i * 50)} style={styles.gridItem}>
-              <Pressable
-                testID={`sport-card-${sport.key}`}
-                style={({ pressed }) => [styles.card, pressed && { opacity: 0.85, borderColor: colors.brandPrimary }]}
-                onPress={() => openSheet(sport)}
-              >
-                <View style={styles.iconBox}>
-                  <MaterialCommunityIcons name={sport.icon as any} size={26} color={colors.brandPrimary} />
+          {SPORTS.map((sport, i) => {
+            const fill = STICKER_FILLS[i % STICKER_FILLS.length];
+            return (
+              <Animated.View key={sport.key} entering={FadeInDown.delay(i * 50)} style={styles.gridItem}>
+                <View style={styles.tileShadow}>
+                  <Pressable
+                    testID={`sport-card-${sport.key}`}
+                    style={({ pressed }) => [
+                      styles.card,
+                      { backgroundColor: fill },
+                      pressed && styles.cardPressed,
+                    ]}
+                    onPress={() => openSheet(sport)}
+                  >
+                    <View style={styles.iconBox}>
+                      <MaterialCommunityIcons name={sport.icon as any} size={26} color={fill} />
+                    </View>
+                    <Text style={styles.cardTitle} numberOfLines={2}>{sport.name}</Text>
+                    <Ionicons name="chevron-forward" size={18} color={INK} style={styles.cardArrow} />
+                  </Pressable>
                 </View>
-                <Text style={styles.cardTitle}>{sport.name}</Text>
-                <Ionicons name="chevron-forward" size={16} color={colors.onSurfaceTertiary} style={styles.cardArrow} />
-              </Pressable>
-            </Animated.View>
-          ))}
+              </Animated.View>
+            );
+          })}
         </View>
       </ScrollView>
 
@@ -219,10 +234,12 @@ export default function Home() {
                 <Text style={styles.multValue}>×{multiplier.toFixed(2)}</Text>
               </View>
 
-              <Pressable testID="start-match-button" style={styles.startBtn} onPress={startMatch}>
-                <Ionicons name="flash" size={20} color={colors.onBrandPrimary} />
-                <Text style={styles.startText}>Start Match</Text>
-              </Pressable>
+              <View style={styles.startShadow}>
+                <Pressable testID="start-match-button" style={styles.startBtn} onPress={startMatch}>
+                  <Ionicons name="flash" size={22} color={INK} />
+                  <Text style={styles.startText}>Start Match</Text>
+                </Pressable>
+              </View>
             </>
           )}
         </BottomSheetScrollView>
@@ -242,18 +259,23 @@ const styles = StyleSheet.create({
   },
   brandRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm, marginBottom: spacing.md },
   wordmark: { color: colors.onSurface, fontFamily: fonts.logo, fontSize: 26, letterSpacing: 0.5 },
+  // ---- sticker style (cartoon-graffiti: thick ink outline + hard offset shadow) ----
+  stickerShadow: { backgroundColor: INK, borderRadius: radius.lg, marginBottom: spacing.xl },
+  tileShadow: { backgroundColor: INK, borderRadius: radius.lg },
   mpCard: {
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
     backgroundColor: colors.brandPrimary,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
+    borderWidth: 3,
+    borderColor: INK,
     padding: spacing.lg,
-    marginBottom: spacing.xl,
+    transform: [{ translateX: -4 }, { translateY: -4 }],
   },
-  mpIcon: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: "rgba(0,0,0,0.18)", alignItems: "center", justifyContent: "center" },
-  mpTitle: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.xl },
-  mpSub: { color: colors.onBrandPrimary, fontFamily: fonts.body, fontSize: fontSize.sm, opacity: 0.8 },
+  mpIcon: { width: 46, height: 46, borderRadius: radius.md, backgroundColor: INK, borderWidth: 2, borderColor: INK, alignItems: "center", justifyContent: "center" },
+  mpTitle: { color: INK, fontFamily: fonts.cartoon, fontSize: 24, letterSpacing: 1 },
+  mpSub: { color: INK, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm, opacity: 0.75 },
   profileRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.lg },
   avatar: { width: 48, height: 48, borderRadius: radius.pill, backgroundColor: colors.surfaceTertiary },
   avatarFallback: { alignItems: "center", justifyContent: "center" },
@@ -273,32 +295,36 @@ const styles = StyleSheet.create({
   statLabel: { color: colors.onSurfaceTertiary, fontFamily: fonts.bodyMedium, fontSize: 10, letterSpacing: 0.8, marginTop: 2 },
   sectionTitle: {
     color: colors.onSurface,
-    fontFamily: fonts.poster,
-    fontSize: 20,
-    letterSpacing: 0.5,
+    fontFamily: fonts.cartoon,
+    fontSize: 26,
+    letterSpacing: 1.5,
     marginBottom: spacing.md,
+    textShadowColor: colors.brandPrimary,
+    textShadowOffset: { width: 2, height: 2 },
+    textShadowRadius: 0,
   },
   grid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
   gridItem: { width: "47.8%" },
   card: {
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: radius.md,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderRadius: radius.lg,
+    borderWidth: 3,
+    borderColor: INK,
     padding: spacing.lg,
     height: 120,
     justifyContent: "space-between",
+    transform: [{ translateX: -4 }, { translateY: -4 }],
   },
+  cardPressed: { transform: [{ translateX: 0 }, { translateY: 0 }] },
   iconBox: {
     width: 44,
     height: 44,
-    borderRadius: radius.md,
-    backgroundColor: colors.brandTertiary,
+    borderRadius: 22,
+    backgroundColor: INK,
     alignItems: "center",
     justifyContent: "center",
   },
-  cardTitle: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg },
-  cardArrow: { position: "absolute", top: spacing.lg, right: spacing.lg },
+  cardTitle: { color: INK, fontFamily: fonts.cartoon, fontSize: 19, letterSpacing: 0.8, lineHeight: 20 },
+  cardArrow: { position: "absolute", top: spacing.lg, right: spacing.md },
   sheet: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   sheetHeader: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.xl },
   sheetIcon: {
@@ -319,7 +345,7 @@ const styles = StyleSheet.create({
     gap: spacing.xs,
     marginBottom: spacing.lg,
   },
-  segLabel: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold, fontSize: 11, letterSpacing: 1, marginBottom: spacing.sm },
+  segLabel: { color: colors.onSurface, fontFamily: fonts.cartoon, fontSize: 15, letterSpacing: 1.2, marginBottom: spacing.sm },
   segLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   segHint: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: 11, marginBottom: spacing.sm },
   segmentItem: { flex: 1, paddingVertical: spacing.md, borderRadius: radius.sm, alignItems: "center", gap: 2 },
@@ -339,17 +365,21 @@ const styles = StyleSheet.create({
   },
   multText: { flex: 1, color: colors.onBrandTertiary, fontFamily: fonts.bodyMedium, fontSize: fontSize.base },
   multValue: { color: colors.brandPrimary, fontFamily: fonts.displayBold, fontSize: fontSize.xl },
-  segmentItemActive: { backgroundColor: colors.brandPrimary },
+  segmentItemActive: { backgroundColor: colors.brandPrimary, borderWidth: 2, borderColor: INK },
   segmentText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: fontSize.base },
   segmentTextActive: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold },
+  startShadow: { backgroundColor: INK, borderRadius: radius.lg },
   startBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.sm,
-    backgroundColor: colors.brandPrimary,
+    backgroundColor: colors.gold,
     height: 56,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
+    borderWidth: 3,
+    borderColor: INK,
+    transform: [{ translateX: -4 }, { translateY: -4 }],
   },
-  startText: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg },
+  startText: { color: INK, fontFamily: fonts.cartoon, fontSize: 24, letterSpacing: 1.5 },
 });

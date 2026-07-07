@@ -60,6 +60,7 @@ export const fonts = {
   body: "IBMPlexSans-Regular",
   bodyMedium: "IBMPlexSans-Medium",
   bodySemiBold: "IBMPlexSans-SemiBold",
+  cartoon: "Bangers-Regular", // chunky comic lettering for sticker-style menu buttons
 };
 
 export const fontSize = {
