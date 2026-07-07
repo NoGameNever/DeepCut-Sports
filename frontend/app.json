@@ -12,7 +12,8 @@
       "supportsTablet": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Choose a photo for your profile avatar"
-      }
+      },
+      "bundleIdentifier": "app.emergent.scorethematcha2ec303e"
     },
     "android": {
       "adaptiveIcon": {
@@ -20,7 +21,10 @@
         "backgroundColor": "#000000"
       },
       "edgeToEdgeEnabled": true,
-      "permissions": ["READ_MEDIA_IMAGES"]
+      "permissions": [
+        "READ_MEDIA_IMAGES"
+      ],
+      "package": "com.emergent.scorethematch.wjxx4p"
     },
     "web": {
       "bundler": "metro",
