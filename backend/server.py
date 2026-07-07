@@ -52,7 +52,7 @@ SPORTS = {
     "nfl": "American Football (NFL)",
     "baseball": "Baseball (MLB)",
 }
-DIFFICULTIES = {"easy", "medium", "hard"}
+DIFFICULTIES = {"easy", "medium", "hard", "deepcut"}
 ERAS = {
     "modern": "Focus on events, players, records and results from roughly the last 10 years (recent era).",
     "2000s": "Focus on events, players and records from the year 2000 up to the present day.",
@@ -400,9 +400,23 @@ async def generate_quiz(body: QuizRequest, authorization: Optional[str] = Header
         "You are a sports trivia question generator. You output ONLY valid JSON, no prose, "
         "no markdown fences. Each question must be factually accurate and unambiguous."
     )
+    is_deepcut = body.difficulty == "deepcut"
+    diff_text = (
+        "absurdly difficult deep-cut" if is_deepcut else f"{body.difficulty}-difficulty"
+    )
+    deepcut_block = (
+        "These must be the most fringe, obscure sports knowledge imaginable — questions that would stump "
+        "even diehard fans: forgotten journeymen and career backups, one-game wonders, obscure transaction "
+        "details, bizarre rule invocations, defunct teams and leagues, arcane stat lines, minor-league and "
+        "preseason moments, broadcast trivia, equipment quirks, and footnote history. NO mainstream questions "
+        "about superstars, famous championships or well-known records. Every question must still be factually "
+        "accurate, verifiable and have exactly one defensible correct answer — obscure, never ambiguous. "
+        if is_deepcut else ""
+    )
     prompt = (
-        f"Generate {count} {body.difficulty}-difficulty multiple-choice trivia questions. "
+        f"Generate {count} {diff_text} multiple-choice trivia questions. "
         f"{mix_text}{era_instruction} "
+        f"{deepcut_block}"
         f"Prioritize fresh, unexpected topics — lean into angles like: {_random_angles()}. "
         f"Variety seed: {uuid.uuid4().hex[:8]}. Never reuse the same player/team/event twice in this set. "
         f"{avoid_block}"
@@ -441,9 +455,9 @@ async def generate_quiz(body: QuizRequest, authorization: Optional[str] = Header
             question=str(it.get("question", "")).strip(),
             options=[str(o) for o in opts],
             correct_index=ci,
-            difficulty=str(it.get("difficulty") or body.difficulty).lower(),
+            difficulty="hard" if is_deepcut else str(it.get("difficulty") or body.difficulty).lower(),
             tags=[t for t in (it.get("tags") or []) if t in ("stats", "history", "film")],
-            deep_cut=bool(it.get("deep_cut")),
+            deep_cut=is_deepcut or bool(it.get("deep_cut")),
         ))
     if not questions:
         raise HTTPException(status_code=502, detail="No valid questions generated")

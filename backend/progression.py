@@ -101,7 +101,7 @@ LEVEL_REWARDS = [
 
 
 # ---------- XP values ----------
-XP_CORRECT = {"easy": 10, "medium": 15, "normal": 15, "hard": 25}
+XP_CORRECT = {"easy": 10, "medium": 15, "normal": 15, "hard": 25, "deepcut": 40}
 XP_DEEP_CUT = 40
 STREAK_BONUSES = {3: 10, 5: 25, 10: 75}
 XP_MATCH_WIN = 100

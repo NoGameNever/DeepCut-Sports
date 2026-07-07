@@ -64,3 +64,7 @@ Build a mobile app: sports trivia app. Evolved: AI questions, timed quiz, Google
 - POST /api/lobbies/{id}/rematch (any member, completed lobbies only): clones+unlocks settings via _validate_settings into a new lobby, requester becomes host, all previous players get in-app lobby invites (visible in Friends tab).
 - Gold "Rematch" sticker button on lobby standings screen → toast + auto-navigate to new lobby room.
 - Verified e2e: settings cloned (hard/10q), 1 player re-invited shown as pending, navigation works.
+
+## DeepCut difficulty (June 2026) — DONE
+- 4th solo difficulty "DeepCut 💀": backend DIFFICULTIES + dedicated prompt block (fringe/obscure only, no mainstream), all questions forced deep_cut=true → 40 XP per correct. XP_CORRECT["deepcut"]=40 fallback added.
+- Verified live: 5/5 absurdly fringe questions (Bubba Wells foul-out record, Fort Wayne 19-18 game); UI selector works.

@@ -18,6 +18,7 @@ export const DIFFICULTIES = [
   { key: "easy", label: "Easy" },
   { key: "medium", label: "Medium" },
   { key: "hard", label: "Hard" },
+  { key: "deepcut", label: "DeepCut 💀" },
 ] as const;
 
 // Shorter timer => higher points multiplier
