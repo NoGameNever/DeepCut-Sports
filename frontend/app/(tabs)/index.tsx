@@ -10,6 +10,7 @@ import Animated, { FadeInDown } from "react-native-reanimated";
 import BottomSheet, { BottomSheetScrollView, BottomSheetBackdrop } from "@gorhom/bottom-sheet";
 import { useAuth } from "@/src/context/AuthContext";
 import { api } from "@/src/api/client";
+import { useToast } from "@/src/components/Toast";
 import { SPORTS, DIFFICULTIES, TIMER_OPTIONS, ERA_OPTIONS, timerOption, eraOption, Sport } from "@/src/constants/sports";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
@@ -21,6 +22,7 @@ const QUESTION_COUNTS = [7, 15, 20, 30];
 export default function Home() {
   const { user, refresh } = useAuth();
   const router = useRouter();
+  const toast = useToast();
   const insets = useSafeAreaInsets();
   const sheetRef = useRef<BottomSheet>(null);
   const [selected, setSelected] = useState<Sport | null>(null);
@@ -55,11 +57,14 @@ export default function Home() {
 
   const toggleSport = (key: string) => {
     Haptics.selectionAsync();
-    setSelectedSports((prev) =>
-      prev.includes(key)
-        ? prev.length > 1 ? prev.filter((k) => k !== key) : prev // keep at least one
-        : [...prev, key]
-    );
+    setSelectedSports((prev) => {
+      if (!prev.includes(key)) return [...prev, key];
+      if (prev.length === 1) {
+        toast.show("You need at least one sport in the mix!", "info");
+        return prev;
+      }
+      return prev.filter((k) => k !== key);
+    });
   };
 
   const startMatch = () => {

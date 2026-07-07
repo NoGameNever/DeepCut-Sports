@@ -52,3 +52,10 @@ Build a mobile app: sports trivia app. Evolved: AI questions, timed quiz, Google
 - Multi-sport mix: "Sports Included" chips in config sheet (min 1); backend /api/quiz/generate accepts `sports` array and distributes questions evenly.
 - Anti-recycling variety: per-generation random topic angles (25-angle pool) + variety seed + per-user recent-question memory (`recent_questions` collection, last 80) injected into prompts ("do not repeat"); applies to both solo and lobby generation.
 - Cartoon-graffiti menu restyle (sticker tiles w/ ink outlines, Bangers font) per user reference image.
+
+## App-wide Cartoon-Graffiti Restyle (June 2026) — DONE
+- Design blueprint from mobile_design_agent (/app/design_guidelines.json). Style: thick #000 ink outlines, vivid flat sticker fills, hard offset shadows, Bangers comic font, dark #1A1A1A base.
+- New shared component: /app/frontend/src/components/Sticker.tsx (press-down-into-shadow interaction). Theme updated (colors.ink, stickerFills export, success now green #06D6A0).
+- Restyled: home tiles/sheet, quiz (colored answer stickers, gold timer, score sticker), results (stat stickers + XP badge + sticker buttons), leaderboard (cartoon tabs, gold/silver/bronze medal rows), profile (colorful stat blocks, ink-bordered cards), lobby buttons/headers, friends headers, login button, Toast (colored sticker), ProgressionModal.
+- Tested: full frontend regression by testing_agent (iteration_5) — all flows pass, 0 errors; stat-color bug + chip toast fixed after.
+- NOTE: parallel search_replace on the SAME file can clobber edits — always edit one file sequentially.

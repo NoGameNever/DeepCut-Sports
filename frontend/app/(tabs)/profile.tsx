@@ -257,7 +257,7 @@ const styles = StyleSheet.create({
   rewardIcon: { fontSize: 24 },
   rewardLevel: { color: colors.gold, fontFamily: fonts.displayBold, fontSize: fontSize.sm },
   rewardName: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: 10, textAlign: "center" },
-  achCard: { flexDirection: "row", gap: spacing.md, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
+  achCard: { flexDirection: "row", gap: spacing.md, backgroundColor: colors.surfaceSecondary, borderWidth: 2, borderColor: colors.ink, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
   achIcon: { fontSize: 28 },
   achNameRow: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   achName: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize.base, flexShrink: 1 },
