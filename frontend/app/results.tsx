@@ -11,8 +11,8 @@ import { sportName, timerOption, eraOption } from "@/src/constants/sports";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
 export default function Results() {
-  const { sport, difficulty, timer, era, score, correct, total, answers } = useLocalSearchParams<{
-    sport: string; difficulty: string; timer: string; era: string; score: string; correct: string; total: string; answers?: string;
+  const { sport, difficulty, timer, era, score, correct, total, answers, sports, count } = useLocalSearchParams<{
+    sport: string; difficulty: string; timer: string; era: string; score: string; correct: string; total: string; answers?: string; sports?: string; count?: string;
   }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -100,7 +100,7 @@ export default function Results() {
         <Pressable
           testID="play-again-button"
           style={[styles.btn, styles.btnPrimary]}
-          onPress={() => router.replace({ pathname: "/quiz", params: { sport, difficulty, timer, era } })}
+          onPress={() => router.replace({ pathname: "/quiz", params: { sport, sports: sports || sport, count: count || "7", difficulty, timer, era } })}
         >
           <Ionicons name="refresh" size={20} color={colors.onBrandPrimary} />
           <Text style={styles.btnPrimaryText}>Play Again</Text>

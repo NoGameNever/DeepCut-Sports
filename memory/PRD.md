@@ -46,3 +46,9 @@ Build a mobile app: sports trivia app. Evolved: AI questions, timed quiz, Google
 - Profile: level card + XP bar, rank card, stats grid, level rewards rail, achievements list. ProgressionModal on level-up/achievement/tier-change (solo results + lobby standings).
 - Backend: /app/backend/progression.py; GET /api/progression; leaderboard?board=; xp_events audit log; 6 seed users (is_seed) for leaderboard demos.
 - Tested: 15/15 backend tests (tests/test_progression.py) + frontend flows verified.
+
+## Quick Play upgrades (June 2026) — DONE
+- Question count selector in solo match config: 7/15/20/30 (backend cap raised to 30).
+- Multi-sport mix: "Sports Included" chips in config sheet (min 1); backend /api/quiz/generate accepts `sports` array and distributes questions evenly.
+- Anti-recycling variety: per-generation random topic angles (25-angle pool) + variety seed + per-user recent-question memory (`recent_questions` collection, last 80) injected into prompts ("do not repeat"); applies to both solo and lobby generation.
+- Cartoon-graffiti menu restyle (sticker tiles w/ ink outlines, Bangers font) per user reference image.

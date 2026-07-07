@@ -21,8 +21,8 @@ type Q = {
 };
 
 export default function Quiz() {
-  const { sport, difficulty, timer, era, lobbyId } = useLocalSearchParams<{
-    sport: string; difficulty: string; timer: string; era: string; lobbyId?: string;
+  const { sport, difficulty, timer, era, lobbyId, sports, count } = useLocalSearchParams<{
+    sport: string; difficulty: string; timer: string; era: string; lobbyId?: string; sports?: string; count?: string;
   }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -65,13 +65,18 @@ export default function Quiz() {
         setSecondsLeft(secs > 0 ? secs : 999);
         setQuestions(g.questions);
       } else {
-        const qs = await api.generateQuiz(sport, difficulty, era, 7);
+        const qs = await api.generateQuiz({
+          sports: sports ? sports.split(",") : [sport],
+          difficulty,
+          era,
+          count: parseInt(count || "7", 10) || 7,
+        });
         setQuestions(qs);
       }
     } catch {
       setError(true);
     }
-  }, [sport, difficulty, era, lobbyId]);
+  }, [sport, difficulty, era, lobbyId, sports, count]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -115,6 +120,8 @@ export default function Quiz() {
         pathname: "/results",
         params: {
           sport,
+          sports: sports || sport,
+          count: count || "7",
           difficulty,
           timer,
           era,
@@ -125,7 +132,7 @@ export default function Quiz() {
         },
       });
     },
-    [router, sport, difficulty, timer, era, lobbyId]
+    [router, sport, difficulty, timer, era, lobbyId, sports, count]
   );
 
   const advance = useCallback(

@@ -16,6 +16,7 @@ import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 // Cartoon-graffiti sticker palette (thick black outlines + vivid flat fills)
 const STICKER_FILLS = ["#FF9F1C", "#2EC4B6", "#9B5DE5", "#06D6A0", "#00B8FF", "#EF476F", "#FFD166"];
 const INK = "#0F0A12";
+const QUESTION_COUNTS = [7, 15, 20, 30];
 
 export default function Home() {
   const { user, refresh } = useAuth();
@@ -23,7 +24,9 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const sheetRef = useRef<BottomSheet>(null);
   const [selected, setSelected] = useState<Sport | null>(null);
+  const [selectedSports, setSelectedSports] = useState<string[]>([]);
   const [difficulty, setDifficulty] = useState("medium");
+  const [count, setCount] = useState(7);
   const [timer, setTimer] = useState("standard");
   const [era, setEra] = useState("modern");
   const [rank, setRank] = useState<number | null>(null);
@@ -42,17 +45,38 @@ export default function Home() {
   const openSheet = (sport: Sport) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setSelected(sport);
+    setSelectedSports([sport.key]);
     setDifficulty("medium");
+    setCount(7);
     setTimer("standard");
     setEra("modern");
     sheetRef.current?.expand();
+  };
+
+  const toggleSport = (key: string) => {
+    Haptics.selectionAsync();
+    setSelectedSports((prev) =>
+      prev.includes(key)
+        ? prev.length > 1 ? prev.filter((k) => k !== key) : prev // keep at least one
+        : [...prev, key]
+    );
   };
 
   const startMatch = () => {
     if (!selected) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
     sheetRef.current?.close();
-    router.push({ pathname: "/quiz", params: { sport: selected.key, difficulty, timer, era } });
+    router.push({
+      pathname: "/quiz",
+      params: {
+        sport: selectedSports[0] ?? selected.key,
+        sports: selectedSports.join(","),
+        difficulty,
+        timer,
+        era,
+        count: String(count),
+      },
+    });
   };
 
   const initial = (user?.name || "P").charAt(0).toUpperCase();
@@ -168,6 +192,28 @@ export default function Home() {
                 </View>
               </View>
 
+              <Text style={styles.segLabel}>SPORTS INCLUDED</Text>
+              <View style={styles.chipWrap}>
+                {SPORTS.map((s) => {
+                  const active = selectedSports.includes(s.key);
+                  return (
+                    <Pressable
+                      key={s.key}
+                      testID={`mix-sport-${s.key}`}
+                      onPress={() => toggleSport(s.key)}
+                      style={[styles.sportChip, active && styles.sportChipActive]}
+                    >
+                      <MaterialCommunityIcons
+                        name={s.icon as any}
+                        size={15}
+                        color={active ? colors.onBrandPrimary : colors.onSurfaceTertiary}
+                      />
+                      <Text style={[styles.sportChipText, active && styles.sportChipTextActive]}>{s.name}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
               <Text style={styles.segLabel}>DIFFICULTY</Text>
               <View style={styles.segment}>
                 {DIFFICULTIES.map((d) => {
@@ -180,6 +226,23 @@ export default function Home() {
                       style={[styles.segmentItem, active && styles.segmentItemActive]}
                     >
                       <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{d.label}</Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.segLabel}>QUESTIONS</Text>
+              <View style={styles.segment}>
+                {QUESTION_COUNTS.map((c) => {
+                  const active = count === c;
+                  return (
+                    <Pressable
+                      key={c}
+                      testID={`count-${c}`}
+                      onPress={() => { Haptics.selectionAsync(); setCount(c); }}
+                      style={[styles.segmentItem, active && styles.segmentItemActive]}
+                    >
+                      <Text style={[styles.segmentText, active && styles.segmentTextActive]}>{c}</Text>
                     </Pressable>
                   );
                 })}
@@ -346,6 +409,22 @@ const styles = StyleSheet.create({
     marginBottom: spacing.lg,
   },
   segLabel: { color: colors.onSurface, fontFamily: fonts.cartoon, fontSize: 15, letterSpacing: 1.2, marginBottom: spacing.sm },
+  chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginBottom: spacing.lg },
+  sportChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.xs,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.pill,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    minHeight: 36,
+  },
+  sportChipActive: { backgroundColor: colors.brandPrimary, borderColor: INK, borderWidth: 2 },
+  sportChipText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: fontSize.sm },
+  sportChipTextActive: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold },
   segLabelRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   segHint: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: 11, marginBottom: spacing.sm },
   segmentItem: { flex: 1, paddingVertical: spacing.md, borderRadius: radius.sm, alignItems: "center", gap: 2 },

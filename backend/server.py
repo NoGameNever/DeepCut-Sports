@@ -2,6 +2,7 @@ import os
 import re
 import json
 import uuid
+import random
 import secrets
 import logging
 from pathlib import Path
@@ -69,6 +70,7 @@ class QuizRequest(BaseModel):
     difficulty: str
     era: str = "modern"
     count: int = 7
+    sports: Optional[List[str]] = None  # multi-sport mix; falls back to `sport`
 
 
 class Question(BaseModel):
@@ -341,23 +343,69 @@ def _parse_json_array(text: str):
     return json.loads(text)
 
 
+# ---------- Question variety (anti-recycling) ----------
+TOPIC_ANGLES = [
+    "draft-day steals and busts", "jersey numbers and nicknames", "coaching changes and firings",
+    "stadium/arena facts", "blockbuster trades", "rookie season performances", "obscure role players",
+    "championship runs", "record-breaking single games", "international players", "injury comebacks",
+    "bitter rivalries", "rule changes and quirks", "memorable playoff collapses", "awards voting surprises",
+    "one-season wonders", "iconic commentary calls and media moments", "uniform and logo history",
+    "contract and salary oddities", "family dynasties and sibling athletes", "unlikely game heroes",
+    "franchise relocations", "referee controversies", "streaks and droughts", "all-star game moments",
+]
+
+
+def _random_angles(n: int = 5) -> str:
+    return ", ".join(random.sample(TOPIC_ANGLES, n))
+
+
+async def _recent_questions_block(user_id: str) -> str:
+    """Recently served questions for this user, so the LLM avoids repeats."""
+    doc = await db.recent_questions.find_one({"user_id": user_id}, {"_id": 0})
+    texts = (doc or {}).get("texts", [])[-25:]
+    if not texts:
+        return ""
+    joined = "\n".join(f"- {t[:120]}" for t in texts)
+    return (
+        "\nDo NOT repeat, closely paraphrase, or re-ask about the same specific fact as any of these "
+        f"previously asked questions:\n{joined}\n"
+    )
+
+
+async def _remember_questions(user_id: str, texts: list):
+    if not texts:
+        return
+    await db.recent_questions.update_one(
+        {"user_id": user_id},
+        {"$push": {"texts": {"$each": texts, "$slice": -80}}},
+        upsert=True,
+    )
+
+
 @api_router.post("/quiz/generate", response_model=List[Question])
 async def generate_quiz(body: QuizRequest, authorization: Optional[str] = Header(None)):
-    await get_current_user(authorization)
-    if body.sport not in SPORTS or body.difficulty not in DIFFICULTIES or body.era not in ERAS:
+    user = await get_current_user(authorization)
+    sport_keys = [s for s in (body.sports or [body.sport]) if s]
+    if (not sport_keys or any(s not in SPORTS for s in sport_keys)
+            or body.difficulty not in DIFFICULTIES or body.era not in ERAS):
         raise HTTPException(status_code=400, detail="Invalid sport, difficulty or era")
 
-    sport_name = SPORTS[body.sport]
+    sport_names = ", ".join(SPORTS[s] for s in sport_keys)
     era_instruction = ERAS[body.era]
-    count = max(3, min(body.count, 10))
+    count = max(3, min(body.count, 30))
+    mix_text = (f"Distribute the questions evenly across all of these sports: {sport_names}. "
+                if len(sport_keys) > 1 else f"All questions are about {sport_names}. ")
+    avoid_block = await _recent_questions_block(user["user_id"])
     system = (
         "You are a sports trivia question generator. You output ONLY valid JSON, no prose, "
         "no markdown fences. Each question must be factually accurate and unambiguous."
     )
     prompt = (
-        f"Generate {count} {body.difficulty}-difficulty multiple-choice trivia questions about {sport_name}. "
-        f"{era_instruction} "
-        "Vary the topics (history, records, players, rules, famous events). "
+        f"Generate {count} {body.difficulty}-difficulty multiple-choice trivia questions. "
+        f"{mix_text}{era_instruction} "
+        f"Prioritize fresh, unexpected topics — lean into angles like: {_random_angles()}. "
+        f"Variety seed: {uuid.uuid4().hex[:8]}. Never reuse the same player/team/event twice in this set. "
+        f"{avoid_block}"
         "Return a JSON array where each item is an object with exactly these keys: "
         '"question" (string), "options" (array of exactly 4 distinct strings), '
         '"correct_index" (integer 0-3 indicating the correct option), '
@@ -399,6 +447,7 @@ async def generate_quiz(body: QuizRequest, authorization: Optional[str] = Header
         ))
     if not questions:
         raise HTTPException(status_code=502, detail="No valid questions generated")
+    await _remember_questions(user["user_id"], [q.question for q in questions])
     return questions
 
 
@@ -824,7 +873,7 @@ def _validate_settings(raw: dict, base: dict = None) -> dict:
     return s
 
 
-async def _generate_lobby_questions(settings: dict):
+async def _generate_lobby_questions(settings: dict, user_id: str = None):
     cats = ", ".join(CAT_LABEL.get(c, c) for c in settings["selected_categories"])
     diff = "deepcut" if settings["game_type"] == "deepcut" else settings["difficulty"]
     diff_text = DIFF_TEXT.get(diff, "medium")
@@ -849,7 +898,10 @@ async def _generate_lobby_questions(settings: dict):
     )
     prompt = (
         f"Generate {count} {diff_text}-difficulty sports trivia questions about {cats}, {era_text}.{sub_text} "
-        f"Vary the topics. Return a JSON array where {fmt_text}. "
+        f"Prioritize fresh, unexpected topics — lean into angles like: {_random_angles()}. "
+        f"Variety seed: {uuid.uuid4().hex[:8]}. Never reuse the same player/team/event twice in this set. "
+        f"{(await _recent_questions_block(user_id)) if user_id else ''}"
+        f"Return a JSON array where {fmt_text}. "
         'Each item also has a "question" key (string), a "difficulty" key (one of "easy","medium","hard"), '
         'a "tags" key (array containing any of "stats","history","film" that apply — "stats" for stat/record/number '
         'questions, "history" for past events/drafts/awards/playoff moments, "film" for play-style/roles/rosters/schemes; '
@@ -878,6 +930,8 @@ async def _generate_lobby_questions(settings: dict):
             "tags": [t for t in (it.get("tags") or []) if t in ("stats", "history", "film")],
             "deep_cut": bool(it.get("deep_cut")) or settings["game_type"] == "deepcut",
         })
+    if user_id and out:
+        await _remember_questions(user_id, [q["question"] for q in out])
     return out
 
 
@@ -1285,7 +1339,7 @@ async def start_lobby(lobby_id: str, authorization: Optional[str] = Header(None)
         raise HTTPException(status_code=400, detail="Need at least 2 players to start")
     settings = _validate_settings({}, base=(lobby.get("settings") or DEFAULT_SETTINGS))
     try:
-        questions = await _generate_lobby_questions(settings)
+        questions = await _generate_lobby_questions(settings, me["user_id"])
     except HTTPException:
         raise
     except Exception as e:
