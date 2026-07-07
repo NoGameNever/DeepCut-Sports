@@ -312,10 +312,10 @@ export default function LobbyRoom() {
             onPress={start}
           >
             {starting ? (
-              <ActivityIndicator color={colors.onBrandPrimary} />
+              <ActivityIndicator color={colors.ink} />
             ) : (
               <>
-                <Ionicons name="flash" size={20} color={lobby.member_count < 2 ? colors.onSurfaceTertiary : colors.onBrandPrimary} />
+                <Ionicons name="flash" size={20} color={lobby.member_count < 2 ? colors.onSurfaceTertiary : colors.ink} />
                 <Text style={[styles.createText, lobby.member_count < 2 && { color: colors.onSurfaceTertiary }]}>
                   {lobby.member_count < 2 ? "Need 2+ players" : "Start Game"}
                 </Text>
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
   codeRow: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: 2 },
   codeText: { color: colors.onSurfaceTertiary, fontFamily: fonts.bodyMedium, fontSize: fontSize.sm },
   section: { marginBottom: spacing.lg },
-  sectionTitle: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm, letterSpacing: 1, marginBottom: spacing.md },
+  sectionTitle: { color: colors.onSurface, fontFamily: fonts.cartoon, fontSize: 18, letterSpacing: 1.2, marginBottom: spacing.md, textShadowColor: colors.brandPrimary, textShadowOffset: { width: 2, height: 2 }, textShadowRadius: 0 },
   settingsCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: spacing.lg, marginBottom: spacing.lg },
   settingsHead: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
   editSettingsBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: colors.surfaceTertiary, paddingVertical: spacing.xs, paddingHorizontal: spacing.md, borderRadius: radius.pill, marginBottom: spacing.md },
@@ -354,7 +354,7 @@ const styles = StyleSheet.create({
   rowName: { flex: 1, color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg },
   rowSub: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: fontSize.sm },
   inviteBtns: { flexDirection: "row", gap: spacing.sm },
-  shareBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: colors.brandPrimary, height: 50, borderRadius: radius.md },
+  shareBtn: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: colors.brandPrimary, height: 50, borderRadius: radius.md, borderWidth: 3, borderColor: colors.ink },
   shareText: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.base },
   copyBtn: { width: 50, height: 50, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, alignItems: "center", justifyContent: "center" },
   addBtn: { backgroundColor: colors.brandPrimary, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.sm },
@@ -370,9 +370,9 @@ const styles = StyleSheet.create({
   standRank: { color: colors.onSurfaceSecondary, fontFamily: fonts.displayBold, fontSize: fontSize.xl, width: 24, textAlign: "center" },
   standScore: { color: colors.onSurface, fontFamily: fonts.displayBold, fontSize: fontSize.xl },
   footer: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.lg, paddingTop: spacing.md, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.divider },
-  createBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: colors.brandPrimary, height: 56, borderRadius: radius.md },
+  createBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: colors.gold, height: 56, borderRadius: radius.md, borderWidth: 3, borderColor: colors.ink },
   createBtnDisabled: { backgroundColor: colors.surfaceSecondary },
-  createText: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg },
+  createText: { color: colors.ink, fontFamily: fonts.cartoon, fontSize: 22, letterSpacing: 1 },
   primaryBtn: { backgroundColor: colors.brandPrimary, height: 52, borderRadius: radius.md, alignItems: "center", justifyContent: "center", marginTop: spacing.lg, paddingHorizontal: spacing.xl },
   primaryText: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg },
 });

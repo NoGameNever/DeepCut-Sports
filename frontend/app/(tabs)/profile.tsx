@@ -10,7 +10,7 @@ import { api } from "@/src/api/client";
 import { XPBar } from "@/src/components/XPBar";
 import { tierColor, rarityColor } from "@/src/constants/progression";
 import { sportName, sportIcon } from "@/src/constants/sports";
-import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
+import { colors, fonts, fontSize, radius, spacing, stickerFills } from "@/src/theme/theme";
 
 const COVER = "https://images.unsplash.com/photo-1509486432407-f8fb9cc99acd";
 
@@ -63,7 +63,7 @@ export default function Profile() {
         {user?.username ? <Text style={styles.username}>@{user.username}</Text> : null}
         {user?.tagline ? <Text style={styles.tagline}>&ldquo;{user.tagline}&rdquo;</Text> : <Text style={styles.email}>{user?.email}</Text>}
         <Pressable testID="edit-profile-button" style={styles.editBtn} onPress={() => router.push("/profile/edit")}>
-          <Ionicons name="create-outline" size={16} color={colors.onSurface} />
+          <Ionicons name="create-outline" size={16} color={colors.ink} />
           <Text style={styles.editText}>Edit Profile</Text>
         </Pressable>
       </View>
@@ -122,9 +122,9 @@ export default function Profile() {
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>CAREER STATS</Text>
         <View style={styles.statGrid}>
-          {stats.map((s) => (
-            <View key={s.label} style={styles.statCard} testID={`profile-stat-${s.label}`}>
-              <MaterialCommunityIcons name={s.icon as any} size={20} color={colors.brandPrimary} />
+          {stats.map((s, i) => (
+            <View key={s.label} style={[styles.statCard, { backgroundColor: stickerFills[i % stickerFills.length] }]} testID={`profile-stat-${s.label}`}>
+              <MaterialCommunityIcons name={s.icon as any} size={20} color={colors.ink} />
               <Text style={styles.statValue}>{s.value}</Text>
               <Text style={styles.statLabel}>{s.label}</Text>
             </View>
@@ -221,15 +221,15 @@ const styles = StyleSheet.create({
   name: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize["2xl"], marginTop: spacing.md },
   username: { color: colors.brandPrimary, fontFamily: fonts.bodyMedium, fontSize: fontSize.base, marginTop: 2 },
   tagline: { color: colors.onSurfaceSecondary, fontFamily: fonts.body, fontSize: fontSize.base, fontStyle: "italic", marginTop: spacing.xs, textAlign: "center", paddingHorizontal: spacing.xl },
-  editBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: colors.surfaceTertiary, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radius.pill, marginTop: spacing.md },
-  editText: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },
+  editBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: colors.surfaceInverse, borderWidth: 2, borderColor: colors.ink, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg, borderRadius: radius.pill, marginTop: spacing.md },
+  editText: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },
   email: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: fontSize.base, marginTop: 2 },
   section: { paddingHorizontal: spacing.lg, marginTop: spacing.xl },
-  sectionTitle: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm, letterSpacing: 1.2, marginBottom: spacing.md },
+  sectionTitle: { color: colors.onSurface, fontFamily: fonts.cartoon, fontSize: 20, letterSpacing: 1.2, marginBottom: spacing.md, textShadowColor: colors.brandPrimary, textShadowOffset: { width: 2, height: 2 }, textShadowRadius: 0 },
   statGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
-  statCard: { width: "30%", flexGrow: 1, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: spacing.md, alignItems: "center", gap: spacing.xs },
-  statValue: { color: colors.onSurface, fontFamily: fonts.displayBold, fontSize: 24 },
-  statLabel: { color: colors.onSurfaceTertiary, fontFamily: fonts.bodyMedium, fontSize: 9, letterSpacing: 0.6 },
+  statCard: { width: "30%", flexGrow: 1, borderRadius: radius.md, borderWidth: 3, borderColor: colors.ink, padding: spacing.md, alignItems: "center", gap: spacing.xs },
+  statValue: { color: colors.ink, fontFamily: fonts.displayBold, fontSize: 24 },
+  statLabel: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 9, letterSpacing: 0.6, opacity: 0.75 },
   bestSport: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: spacing.lg, marginTop: spacing.md },
   bestIcon: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.brandTertiary, alignItems: "center", justifyContent: "center" },
   bestLabel: { color: colors.onSurfaceTertiary, fontFamily: fonts.bodyMedium, fontSize: 10, letterSpacing: 0.8 },
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   settingRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: spacing.lg },
   settingText: { flex: 1, fontFamily: fonts.bodyMedium, fontSize: fontSize.lg },
   // ---- progression ----
-  levelCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: spacing.lg, gap: spacing.md },
+  levelCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 3, borderColor: colors.ink, padding: spacing.lg, gap: spacing.md },
   levelHead: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   levelBubble: { width: 54, height: 54, borderRadius: 27, borderWidth: 3, borderColor: colors.gold, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceTertiary },
   levelNum: { color: colors.gold, fontFamily: fonts.displayBold, fontSize: 26 },
@@ -247,13 +247,13 @@ const styles = StyleSheet.create({
   chip: { flex: 1, backgroundColor: colors.surfaceTertiary, borderRadius: radius.md, paddingVertical: spacing.sm, alignItems: "center" },
   chipValue: { color: colors.onSurface, fontFamily: fonts.displayBold, fontSize: fontSize.xl },
   chipLabel: { color: colors.onSurfaceTertiary, fontFamily: fonts.bodyMedium, fontSize: 9, letterSpacing: 0.8 },
-  tierCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, padding: spacing.lg, gap: spacing.md },
+  tierCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 3, padding: spacing.lg, gap: spacing.md },
   tierHead: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   tierIcon: { fontSize: 32 },
   tierName: { fontFamily: fonts.poster, fontSize: 22 },
   tierTagline: { color: colors.onSurfaceSecondary, fontFamily: fonts.body, fontSize: fontSize.sm, fontStyle: "italic" },
   tierNext: { color: colors.onSurfaceTertiary, fontFamily: fonts.bodyMedium, fontSize: fontSize.sm },
-  rewardCard: { width: 100, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: spacing.md, alignItems: "center", gap: 2 },
+  rewardCard: { width: 100, backgroundColor: colors.surfaceSecondary, borderWidth: 2, borderColor: colors.ink, borderRadius: radius.md, padding: spacing.md, alignItems: "center", gap: 2 },
   rewardIcon: { fontSize: 24 },
   rewardLevel: { color: colors.gold, fontFamily: fonts.displayBold, fontSize: fontSize.sm },
   rewardName: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: 10, textAlign: "center" },

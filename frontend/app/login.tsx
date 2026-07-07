@@ -50,21 +50,23 @@ export default function Login() {
         </Animated.View>
 
         <Animated.View entering={FadeInUp.delay(120).duration(500)}>
-          <Pressable
-            testID="google-signin-button"
-            style={({ pressed }) => [styles.googleBtn, pressed && { opacity: 0.85 }]}
-            onPress={onSignIn}
-            disabled={signingIn || loading}
-          >
-            {signingIn ? (
-              <ActivityIndicator color={colors.onSurfaceInverse} />
-            ) : (
-              <>
-                <Ionicons name="logo-google" size={20} color={colors.onSurfaceInverse} />
-                <Text style={styles.googleText}>Ball Up with Google</Text>
-              </>
-            )}
-          </Pressable>
+          <View style={styles.googleShadow}>
+            <Pressable
+              testID="google-signin-button"
+              style={({ pressed }) => [styles.googleBtn, pressed && { transform: [{ translateX: 0 }, { translateY: 0 }] }]}
+              onPress={onSignIn}
+              disabled={signingIn || loading}
+            >
+              {signingIn ? (
+                <ActivityIndicator color={colors.onSurfaceInverse} />
+              ) : (
+                <>
+                  <Ionicons name="logo-google" size={22} color={colors.onSurfaceInverse} />
+                  <Text style={styles.googleText}>Ball Up With Google</Text>
+                </>
+              )}
+            </Pressable>
+          </View>
           <Text style={styles.terms}>Sign in to bank your scores & climb the ranks</Text>
         </Animated.View>
       </View>
@@ -93,18 +95,20 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textAlign: "center",
   },
+  googleShadow: { backgroundColor: "#000000", borderRadius: radius.lg },
   googleBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.md,
     backgroundColor: colors.surfaceInverse,
-    height: 56,
-    borderRadius: radius.pill,
-    borderWidth: 2,
-    borderColor: colors.brandPrimary,
+    height: 58,
+    borderRadius: radius.lg,
+    borderWidth: 3,
+    borderColor: "#000000",
+    transform: [{ translateX: -4 }, { translateY: -4 }],
   },
-  googleText: { color: colors.onSurfaceInverse, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg },
+  googleText: { color: colors.onSurfaceInverse, fontFamily: fonts.cartoon, fontSize: 22, letterSpacing: 1 },
   terms: {
     color: colors.onSurfaceSecondary,
     fontFamily: fonts.body,

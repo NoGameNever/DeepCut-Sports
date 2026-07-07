@@ -83,8 +83,8 @@ export function ProgressionModal({ summary, onClose }: { summary: any; onClose: 
 
 const styles = StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: "rgba(0,0,0,0.75)", alignItems: "center", justifyContent: "center", padding: spacing.xl },
-  card: { width: "100%", maxWidth: 420, maxHeight: "85%", backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, borderWidth: 1, borderColor: colors.brandPrimary, padding: spacing.xl },
-  kicker: { color: colors.brandPrimary, fontFamily: fonts.poster, fontSize: 34, letterSpacing: 1 },
+  card: { width: "100%", maxWidth: 420, maxHeight: "85%", backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, borderWidth: 3, borderColor: colors.ink, padding: spacing.xl },
+  kicker: { color: colors.brandPrimary, fontFamily: fonts.cartoon, fontSize: 38, letterSpacing: 2, textShadowColor: colors.gold, textShadowOffset: { width: 2, height: 2 }, textShadowRadius: 0 },
   levelBubble: { width: 92, height: 92, borderRadius: 46, borderWidth: 4, borderColor: colors.gold, alignItems: "center", justifyContent: "center", marginTop: spacing.md, backgroundColor: colors.surfaceTertiary },
   levelNum: { color: colors.gold, fontFamily: fonts.displayBold, fontSize: 44 },
   xpHint: { color: colors.onSurfaceTertiary, fontFamily: fonts.bodyMedium, fontSize: fontSize.sm, textAlign: "center", marginTop: spacing.sm },

@@ -1,10 +1,10 @@
 export const colors = {
-  surface: "#0A0A0A",
+  surface: "#1A1A1A",
   onSurface: "#FFFFFF",
-  surfaceSecondary: "#161318",
-  onSurfaceSecondary: "#B0A8AE",
-  surfaceTertiary: "#241E24",
-  onSurfaceTertiary: "#7A7078",
+  surfaceSecondary: "#262026",
+  onSurfaceSecondary: "#C4BBC2",
+  surfaceTertiary: "#363036",
+  onSurfaceTertiary: "#8F8590",
   surfaceInverse: "#FFFFFF",
   onSurfaceInverse: "#0A0A0A",
   brand: "#FF0EA9",
@@ -15,23 +15,27 @@ export const colors = {
   brandTertiary: "#3A0A28",
   onBrandTertiary: "#FF6FC7",
   gold: "#FFC107",
-  purple: "#6A00FF",
+  purple: "#9B5DE5",
   cyan: "#00B8FF",
-  success: "#FFC107",
-  onSuccess: "#2E2400",
-  warning: "#FFC107",
+  success: "#06D6A0",
+  onSuccess: "#00291D",
+  warning: "#FF9F1C",
   onWarning: "#2E2400",
-  error: "#FF3B30",
+  error: "#EF476F",
   onError: "#FFFFFF",
-  border: "#2C2630",
-  borderStrong: "#453D48",
-  divider: "#1E1A20",
+  ink: "#000000", // thick sticker outlines + hard offset shadows
+  border: "#3A333A",
+  borderStrong: "#000000",
+  divider: "#241E24",
 };
+
+// Vivid flat sticker fills — cycle through for tiles, answers, badges (never gradients)
+export const stickerFills = ["#FF9F1C", "#2EC4B6", "#9B5DE5", "#06D6A0", "#00B8FF", "#EF476F", "#FFD166", "#FF0EA9"];
 
 // rgba tints for answer states
 export const tints = {
-  correct: "rgba(255,193,7,0.16)",
-  wrong: "rgba(255,59,48,0.15)",
+  correct: "rgba(6,214,160,0.18)",
+  wrong: "rgba(239,71,111,0.18)",
   blue: "rgba(0,184,255,0.15)",
 };
 

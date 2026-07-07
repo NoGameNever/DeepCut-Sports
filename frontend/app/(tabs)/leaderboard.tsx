@@ -31,21 +31,28 @@ function Avatar({ uri, name, size }: { uri?: string; name: string; size: number 
 function LeaderRow({ item, mine, weekly }: { item: Row; mine: boolean; weekly: boolean }) {
   const medal = item.rank <= 3 ? MEDALS[item.rank - 1] : null;
   return (
-    <View style={[styles.row, mine && styles.rowMine]} testID={`leaderboard-row-${item.rank}`}>
-      <Text style={[styles.rowRank, medal ? { color: medal } : null]}>{item.rank}</Text>
-      <Avatar uri={item.picture} name={item.name} size={40} />
+    <View
+      style={[styles.row, medal ? { backgroundColor: medal, borderColor: "#000" } : null, mine && styles.rowMine]}
+      testID={`leaderboard-row-${item.rank}`}
+    >
+      <Text style={[styles.rowRank, medal ? styles.inkText : null]}>{item.rank}</Text>
+      <View style={medal ? styles.medalAvatarRing : null}>
+        <Avatar uri={item.picture} name={item.name} size={40} />
+      </View>
       <View style={{ flex: 1 }}>
         <View style={styles.nameLine}>
-          <Text style={styles.rowName} numberOfLines={1}>{item.name}{mine ? " (You)" : ""}</Text>
-          <View style={styles.levelPill}><Text style={styles.levelPillText}>Lv {item.level}</Text></View>
+          <Text style={[styles.rowName, medal ? styles.inkText : null]} numberOfLines={1}>{item.name}{mine ? " (You)" : ""}</Text>
+          <View style={[styles.levelPill, medal ? { backgroundColor: "#000" } : null]}>
+            <Text style={styles.levelPillText}>Lv {item.level}</Text>
+          </View>
         </View>
-        <Text style={[styles.rowTier, { color: tierColor(item.tier.key) }]} numberOfLines={1}>
+        <Text style={[styles.rowTier, { color: medal ? "#000" : tierColor(item.tier.key) }]} numberOfLines={1}>
           {item.tier.icon} {item.tier.name} · {item.accuracy}% acc
         </Text>
       </View>
       <View style={{ alignItems: "flex-end" }}>
-        <Text style={styles.rowScore}>{item.xp.toLocaleString()}</Text>
-        <Text style={styles.rowXpLabel}>{item.featured ? `${item.featured.icon} ` : ""}{weekly ? "WK XP" : "XP"}</Text>
+        <Text style={[styles.rowScore, medal ? styles.inkText : null]}>{item.xp.toLocaleString()}</Text>
+        <Text style={[styles.rowXpLabel, medal ? { color: "#000", opacity: 0.7 } : null]}>{item.featured ? `${item.featured.icon} ` : ""}{weekly ? "WK XP" : "XP"}</Text>
       </View>
     </View>
   );
@@ -162,10 +169,10 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   tabRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, marginTop: spacing.md, paddingHorizontal: spacing.lg },
-  tab: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: "rgba(22,19,24,0.85)", borderWidth: 1, borderColor: colors.border, minHeight: 36, justifyContent: "center" },
-  tabActive: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
-  tabText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold, fontSize: 11, letterSpacing: 0.8 },
-  tabTextActive: { color: colors.onBrandPrimary },
+  tab: { paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.pill, backgroundColor: "rgba(26,26,26,0.9)", borderWidth: 2, borderColor: "#000", minHeight: 36, justifyContent: "center" },
+  tabActive: { backgroundColor: colors.brandPrimary, borderColor: "#000" },
+  tabText: { color: colors.onSurfaceSecondary, fontFamily: fonts.cartoon, fontSize: 13, letterSpacing: 1 },
+  tabTextActive: { color: "#000" },
   tabDivider: { width: 1, height: 20, backgroundColor: colors.borderStrong },
   avatarFallback: { backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center" },
   avatarText: { color: colors.brandPrimary, fontFamily: fonts.displayBold },
@@ -175,10 +182,14 @@ const styles = StyleSheet.create({
     gap: spacing.md,
     backgroundColor: colors.surfaceSecondary,
     borderRadius: radius.md,
+    borderWidth: 2,
+    borderColor: "#000",
     padding: spacing.md,
     marginBottom: spacing.sm,
   },
-  rowMine: { borderWidth: 1, borderColor: colors.brandPrimary },
+  rowMine: { borderWidth: 3, borderColor: colors.brandPrimary },
+  inkText: { color: "#000" },
+  medalAvatarRing: { borderWidth: 2, borderColor: "#000", borderRadius: 22 },
   rowRank: { color: colors.onSurfaceSecondary, fontFamily: fonts.displayBold, fontSize: fontSize.xl, width: 28, textAlign: "center" },
   nameLine: { flexDirection: "row", alignItems: "center", gap: spacing.sm },
   rowName: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg, flexShrink: 1 },

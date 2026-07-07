@@ -237,6 +237,6 @@ const styles = StyleSheet.create({
   errorBox: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "rgba(255,59,48,0.12)", borderRadius: radius.md, padding: spacing.md, marginTop: spacing.lg },
   errorText: { flex: 1, color: colors.error, fontFamily: fonts.bodyMedium, fontSize: fontSize.base },
   footer: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.lg, paddingTop: spacing.md, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.divider },
-  saveBtn: { backgroundColor: colors.brandPrimary, height: 56, borderRadius: radius.md, alignItems: "center", justifyContent: "center" },
+  saveBtn: { backgroundColor: colors.brandPrimary, height: 56, borderRadius: radius.md, borderWidth: 3, borderColor: colors.ink, alignItems: "center", justifyContent: "center" },
   saveText: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg },
 });

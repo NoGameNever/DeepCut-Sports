@@ -1,0 +1,57 @@
+{
+  "summary": "Frontend-only regression after app-wide 'cartoon graffiti sticker' restyle. Ran full mobile-viewport (390x844) Playwright pass as user_7b917a788ff2 (Christopher McCarthy) via seeded session sess_sporttest_334a0f. Verified: Login screen renders with graffiti hero art + white sticker Google button (no crash); Home screen renders 7 colorful sport tiles + stat cards + pink 'PLAY WITH FRIENDS' card + 4-tab cartoon bottom bar (PLAY/FRIENDS/RANKS/PROFILE); Config bottom sheet fully wired (SPORTS INCLUDED chips w/ working multi-select + last-one guard, DIFFICULTY, QUESTIONS 7/15/20/30, TIME LIMIT, ERA, gold Start Match); Solo quiz end-to-end (Basketball · Easy · 7Q) — LLM generated in ~39s, quiz-screen w/ gold timer circle + orange/teal/purple/blue answer buttons + quiz-score updates, answered all 7 questions and reached Results; Results screen: 'MATCH OVER', 480 pts, +20 KNOWLEDGE XP gold badge with 'Lv 4 · Ball Watcher', Play Again + Ranks buttons, Back to Home link, all render (NO progression modal — expected, +20 XP wasn't enough for level up); Leaderboard: all 4 tab pill combinations (GLOBAL/FRIENDS × ALL-TIME/WEEKLY) switch correctly, top-3 rows render, sticky 'You' row present, Friends empty state now renders (iter4 bug fixed); Profile: level card + tier card + 6 stat blocks + 7 level rewards + 8 achievements — no layout breakage; Friends: search 'seed' returns 6 seed users (ArchiveAndre, BenchMobBarry, BoxScoreBecky, FilmRoomFelix, GoatedGreg, RotationRandy); Lobby create → lobby room with cartoon section headers, Share Invite + Copy + Start Game button (Need 2+ Players state), toast 'Invite link copied!' renders. Total console errors observed across full run: 6 non-fatal React 19 'element.ref' deprecation warnings from an internal library (not app code) + repeated font decode warnings for IBMPlexSans-SemiBold/Medium. 0 pageerrors / 0 redbox errors on any screen. One visual bug found: Results screen stat stickers (CORRECT/ACCURACY/GLOBAL RANK) appear dark grey instead of the intended orange/teal/blue vivid fills because styles.statCard.backgroundColor overrides the Sticker component's fill via contentStyle.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Results screen — stat stickers color override",
+        "issue": "The three stat stickers (CORRECT / ACCURACY / GLOBAL RANK) are meant to display the vivid STAT_FILLS colors (#FF9F1C orange, #2EC4B6 teal, #00B8FF blue) per results.tsx:14+88-99, but they render as dark grey. RCA: <Sticker fill={STAT_FILLS[i]} contentStyle={styles.statCard} /> passes styles.statCard as the last item in the face style array (Sticker.tsx:38), and styles.statCard sets backgroundColor: colors.surfaceSecondary (results.tsx:159), which overrides the fill. Fix: remove `backgroundColor: colors.surfaceSecondary` from styles.statCard so the Sticker's fill shows through (or pass a variant that doesn't set backgroundColor).",
+        "testID": "results-screen (stat cards inside)",
+        "priority": "MEDIUM"
+      },
+      {
+        "component": "Home config sheet — last-selected-sport guard has no user feedback",
+        "issue": "Tapping the currently-only-selected sports chip (e.g., mix-sport-basketball when it's the only one selected) correctly no-ops and keeps at least one sport selected, but there is no toast/haptic/visual indication telling the user why. Users may think the tap didn't register. Suggest firing a toast like 'Pick at least one sport' when guarding the last chip.",
+        "testID": "mix-sport-<sport>",
+        "priority": "LOW"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Global (all screens with body text)",
+        "issues": [
+          "Web font decoding fails repeatedly for /assets/fonts/IBMPlexSans-SemiBold.ttf and IBMPlexSans-Medium.ttf ('OTS parsing error: invalid sfntVersion: 168430090'). Text still renders via fallback fonts, but non-Bangers body copy is not using the intended weights on web preview. Suggest verifying the .ttf files are correctly served (not an HTML redirect) and/or replacing with .woff2 for web."
+        ]
+      }
+    ],
+    "react_native_issues": [
+      {
+        "component": "React 19 ref deprecation warnings",
+        "issue": "6x 'Accessing element.ref was removed in React 19. ref is now a regular prop. It will be removed from the JSX Element type in a future release.' appear in console across profile/leaderboard/lobby screens. These come from an internal library (likely react-native-reanimated or expo-router animated stack) forwarding refs the legacy way, not from app code. Non-fatal today but will break once React drops the compatibility shim. Reference: intermittent across app screens."
+      }
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [
+    "Fix results.tsx statCard color override so the Sticker's STAT_FILLS colors are visible (remove backgroundColor from styles.statCard at results.tsx:159, or set backgroundColor to 'transparent').",
+    "(Optional UX) Fire a toast in the config sheet when the user attempts to deselect the last selected sport, e.g., 'Pick at least one sport'.",
+    "(Optional) Investigate and re-encode/serve IBMPlexSans-SemiBold.ttf and IBMPlexSans-Medium.ttf so web font decoding succeeds (currently fails with OTS parsing error).",
+    "(Optional) Audit third-party libs producing React 19 element.ref deprecation warnings and upgrade or pin patched versions to prevent future breakage.",
+    "No blocking issues — user can play the full quiz → results → progression flow end-to-end today."
+  ],
+  "critical_code_review_comments": [
+    "Sticker.tsx correctly places `contentStyle` last in the face style array, which means any consumer that sets `backgroundColor` inside contentStyle will silently override the `fill` prop. Consider making Sticker enforce fill by spreading it AFTER contentStyle, or documenting this behavior. results.tsx currently trips this exact footgun on the 3 stat cards.",
+    "results.tsx:80-83 (results-xp-gained) correctly renders inside the flow when progression exists — verified '+20 Knowledge XP · Lv 4 · 🔵 Ball Watcher' displayed after a 7Q solo match.",
+    "leaderboard.tsx empty-state fix from iteration_4 is now working — Friends board with only me now shows the ListEmptyComponent instead of my sole row.",
+    "quiz.tsx:265 renders `{current + 1} / {questions.length}` — display observed briefly as '1 / 1' during the first render of the first question in one screenshot but final results correctly showed 2/7 correct, indicating the questions array did contain 7 items. This is likely a render-timing artifact (screenshot captured before questions state populated fully) but worth a quick look if it recurs.",
+    "No hardcoded API URLs found; frontend consistently uses EXPO_PUBLIC_BACKEND_URL via api/client.ts."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "skipped (per request — backend unchanged, iter4 15/15 still valid)", "frontend": "~92% — 11/11 requested flows render and function end-to-end; 1 medium visual regression (results stat card color), 1 low-priority UX gap (missing toast on last-sport guard), plus non-fatal console noise (React 19 ref warnings + web font decode errors)"},
+  "seed_data_creation": "None. Reused existing session sess_sporttest_334a0f (user_7b917a788ff2, Christopher McCarthy) which is still valid. One real solo quiz match was played and submitted (7 questions, 2 correct, +480 pts, +20 XP), which will have modified the user's counters/xp_events in Mongo — expected per the main-agent context note.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Full frontend restyle regression complete for iteration_5. All 11 review-request flows render and function. Only actionable bug: results.tsx stat stickers appear grey instead of their fill colors due to styles.statCard.backgroundColor overriding Sticker.fill — see ui_bug above with exact file/lines. React 19 element.ref warnings and web font decode failures are pre-existing environmental noise, not new to this restyle. If retesting after the stat card fix, snapshot /tmp/06_results.png equivalent to confirm the CORRECT (orange), ACCURACY (teal), and GLOBAL RANK (blue) stickers each show their fill color.",
+  "rca_of_issue": "Results stat card grey-out RCA: In /app/frontend/src/components/Sticker.tsx:29-39, the face() style array places `contentStyle` AFTER `{ backgroundColor: fill, ... }`. In /app/frontend/app/results.tsx:88-99 the three stat Stickers pass `contentStyle={styles.statCard}`, and styles.statCard (line 159) sets `backgroundColor: colors.surfaceSecondary`. Because React Native flattens style arrays left-to-right with later entries winning, `colors.surfaceSecondary` overrides the intended STAT_FILLS[i] color. Reproduce: play any solo quiz to results and observe CORRECT/ACCURACY/GLOBAL RANK cards render dark instead of vivid orange/teal/blue. Mitigation: remove `backgroundColor: colors.surfaceSecondary` from styles.statCard OR set it to 'transparent' OR modify Sticker.tsx to spread contentStyle BEFORE the backgroundColor object so fill always wins."
+}

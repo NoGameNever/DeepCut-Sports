@@ -15,7 +15,7 @@ import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
 // Cartoon-graffiti sticker palette (thick black outlines + vivid flat fills)
 const STICKER_FILLS = ["#FF9F1C", "#2EC4B6", "#9B5DE5", "#06D6A0", "#00B8FF", "#EF476F", "#FFD166"];
-const INK = "#0F0A12";
+const INK = "#000000";
 const QUESTION_COUNTS = [7, 15, 20, 30];
 
 export default function Home() {

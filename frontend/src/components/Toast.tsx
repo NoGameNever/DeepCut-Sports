@@ -38,8 +38,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           style={[styles.wrap, { top: insets.top + spacing.sm }]}
           testID="toast"
         >
-          <View style={[styles.toast, { borderLeftColor: accent }]}>
-            <Ionicons name={iconName as any} size={20} color={accent} />
+          <View style={[styles.toast, { backgroundColor: accent }]}>
+            <Ionicons name={iconName as any} size={20} color={colors.ink} />
             <Text style={styles.text} numberOfLines={2}>
               {toast.msg}
             </Text>
@@ -56,11 +56,11 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: spacing.md,
-    backgroundColor: colors.surfaceTertiary,
     borderRadius: radius.md,
-    borderLeftWidth: 4,
+    borderWidth: 3,
+    borderColor: colors.ink,
     paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
   },
-  text: { flex: 1, color: colors.onSurface, fontFamily: fonts.bodyMedium, fontSize: fontSize.base },
+  text: { flex: 1, color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: fontSize.base },
 });

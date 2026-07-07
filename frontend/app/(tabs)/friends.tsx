@@ -230,7 +230,7 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, color: colors.onSurface, fontFamily: fonts.body, fontSize: fontSize.base },
   section: { marginBottom: spacing.xl },
-  sectionTitle: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm, letterSpacing: 1, marginBottom: spacing.md },
+  sectionTitle: { color: colors.onSurface, fontFamily: fonts.cartoon, fontSize: 18, letterSpacing: 1.2, marginBottom: spacing.md, textShadowColor: colors.brandPrimary, textShadowOffset: { width: 2, height: 2 }, textShadowRadius: 0 },
   row: {
     flexDirection: "row",
     alignItems: "center",

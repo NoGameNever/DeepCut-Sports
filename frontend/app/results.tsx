@@ -7,8 +7,11 @@ import Animated, { FadeInDown, ZoomIn } from "react-native-reanimated";
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/context/AuthContext";
 import { ProgressionModal } from "@/src/components/ProgressionModal";
+import { Sticker } from "@/src/components/Sticker";
 import { sportName, timerOption, eraOption } from "@/src/constants/sports";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
+
+const STAT_FILLS = ["#FF9F1C", "#2EC4B6", "#00B8FF"];
 
 export default function Results() {
   const { sport, difficulty, timer, era, score, correct, total, answers, sports, count } = useLocalSearchParams<{
@@ -82,33 +85,43 @@ export default function Results() {
       </View>
 
       <Animated.View entering={FadeInDown.delay(250)} style={styles.statGrid}>
-        <View style={styles.statCard}>
+        <Sticker fill={STAT_FILLS[0]} radius={radius.lg} style={{ flex: 1 }} contentStyle={styles.statCard}>
           <Text style={styles.statValue}>{correctN}/{totalN}</Text>
           <Text style={styles.statLabel}>CORRECT</Text>
-        </View>
-        <View style={styles.statCard}>
+        </Sticker>
+        <Sticker fill={STAT_FILLS[1]} radius={radius.lg} style={{ flex: 1 }} contentStyle={styles.statCard}>
           <Text style={styles.statValue}>{accuracy}%</Text>
           <Text style={styles.statLabel}>ACCURACY</Text>
-        </View>
-        <View style={styles.statCard}>
-          {syncing ? <ActivityIndicator color={colors.brandPrimary} /> : <Text style={styles.statValue}>{rank ? `#${rank}` : "—"}</Text>}
+        </Sticker>
+        <Sticker fill={STAT_FILLS[2]} radius={radius.lg} style={{ flex: 1 }} contentStyle={styles.statCard}>
+          {syncing ? <ActivityIndicator color={colors.ink} /> : <Text style={styles.statValue}>{rank ? `#${rank}` : "—"}</Text>}
           <Text style={styles.statLabel}>GLOBAL RANK</Text>
-        </View>
+        </Sticker>
       </Animated.View>
 
       <View style={styles.actions}>
-        <Pressable
+        <Sticker
+          fill={colors.brandPrimary}
+          radius={radius.lg}
+          style={{ flex: 1 }}
+          contentStyle={styles.btn}
           testID="play-again-button"
-          style={[styles.btn, styles.btnPrimary]}
           onPress={() => router.replace({ pathname: "/quiz", params: { sport, sports: sports || sport, count: count || "7", difficulty, timer, era } })}
         >
-          <Ionicons name="refresh" size={20} color={colors.onBrandPrimary} />
-          <Text style={styles.btnPrimaryText}>Play Again</Text>
-        </Pressable>
-        <Pressable testID="results-leaderboard-button" style={[styles.btn, styles.btnSecondary]} onPress={() => router.replace("/(tabs)/leaderboard")}>
-          <Ionicons name="trophy-outline" size={20} color={colors.onSurface} />
-          <Text style={styles.btnSecondaryText}>Ranks</Text>
-        </Pressable>
+          <Ionicons name="refresh" size={20} color={colors.ink} />
+          <Text style={styles.btnText}>Play Again</Text>
+        </Sticker>
+        <Sticker
+          fill={colors.gold}
+          radius={radius.lg}
+          style={{ flex: 1 }}
+          contentStyle={styles.btn}
+          testID="results-leaderboard-button"
+          onPress={() => router.replace("/(tabs)/leaderboard")}
+        >
+          <Ionicons name="trophy" size={20} color={colors.ink} />
+          <Text style={styles.btnText}>Ranks</Text>
+        </Sticker>
       </View>
       <Pressable testID="results-home-button" onPress={() => router.replace("/(tabs)")} style={styles.homeLink}>
         <Text style={styles.homeText}>Back to Home</Text>
@@ -139,9 +152,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   multBadgeText: { color: colors.onBrandTertiary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },
-  xpBadge: { alignItems: "center", marginTop: spacing.md, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.gold, borderRadius: radius.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
-  xpBadgeText: { color: colors.gold, fontFamily: fonts.displayBold, fontSize: fontSize.xl },
-  xpBadgeSub: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: fontSize.sm, marginTop: 2 },
+  xpBadge: { alignItems: "center", marginTop: spacing.md, backgroundColor: colors.gold, borderWidth: 3, borderColor: colors.ink, borderRadius: radius.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
+  xpBadgeText: { color: colors.ink, fontFamily: fonts.cartoon, fontSize: 22, letterSpacing: 1 },
+  xpBadgeSub: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm, marginTop: 2, opacity: 0.8 },
   statGrid: { flexDirection: "row", gap: spacing.md, marginTop: spacing.xxl },
   statCard: { flex: 1, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, paddingVertical: spacing.lg, alignItems: "center", gap: spacing.xs, minHeight: 78, justifyContent: "center" },
   statValue: { color: colors.onSurface, fontFamily: fonts.displayBold, fontSize: 26 },

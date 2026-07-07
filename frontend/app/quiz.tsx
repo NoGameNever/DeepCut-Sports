@@ -9,9 +9,12 @@ import { api } from "@/src/api/client";
 import { sportName, timerOption, eraOption } from "@/src/constants/sports";
 import { useToast } from "@/src/components/Toast";
 import { UserAvatar } from "@/src/components/UserAvatar";
+import { Sticker } from "@/src/components/Sticker";
 import { useAuth } from "@/src/context/AuthContext";
 import { setPendingProgression } from "@/src/state/progressionEvent";
-import { colors, fonts, fontSize, radius, spacing, tints } from "@/src/theme/theme";
+import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
+
+const OPTION_FILLS = ["#FF9F1C", "#2EC4B6", "#9B5DE5", "#00B8FF"];
 
 const BASE_POINTS = 100;
 
@@ -244,31 +247,26 @@ export default function Quiz() {
   }
 
   const q = questions[current];
-  const timerColor = secondsLeft <= 5 ? colors.error : colors.brandPrimary;
+  const urgent = secondsLeft <= 5;
 
-  const optionStyle = (i: number) => {
-    if (!locked) return [styles.option];
-    if (i === q.correct_index) return [styles.option, styles.optionCorrect];
-    if (i === selected) return [styles.option, styles.optionWrong];
-    return [styles.option, { opacity: 0.5 }];
-  };
-  const optionTextStyle = (i: number) => {
-    if (!locked) return styles.optionText;
-    if (i === q.correct_index || i === selected) return [styles.optionText, { color: colors.onSurface, fontFamily: fonts.bodySemiBold }];
-    return styles.optionText;
+  const optionFill = (i: number) => {
+    if (!locked) return OPTION_FILLS[i % OPTION_FILLS.length];
+    if (i === q.correct_index) return colors.success;
+    if (i === selected) return colors.error;
+    return colors.surfaceTertiary;
   };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.md }]} testID="quiz-screen">
       <View style={styles.topBar}>
         <Pressable onPress={() => router.back()} testID="quiz-quit" hitSlop={10} style={styles.quitBtn}>
-          <Ionicons name="close" size={22} color={colors.onSurfaceSecondary} />
+          <Ionicons name="close" size={22} color={colors.onSurface} />
         </Pressable>
         <Text style={styles.qCounter}>{current + 1} / {questions.length}</Text>
-        <View style={styles.scorePill}>
-          <Ionicons name="star" size={13} color={colors.brandPrimary} />
+        <Sticker fill={colors.gold} radius={999} offset={3} contentStyle={styles.scorePill}>
+          <Ionicons name="star" size={13} color={colors.ink} />
           <Text style={styles.scoreText} testID="quiz-score">{score}</Text>
-        </View>
+        </Sticker>
       </View>
 
       {isLobby && livePlayers.length > 0 && (
@@ -304,17 +302,17 @@ export default function Quiz() {
 
       <View style={styles.timerWrap}>
         {noTimer ? (
-          <View style={[styles.timerCircle, { borderColor: colors.brandSecondary }]}>
-            <Ionicons name="infinite" size={40} color={colors.brandSecondary} />
+          <View style={[styles.timerCircle, { backgroundColor: colors.brandSecondary }]}>
+            <Ionicons name="infinite" size={40} color={colors.ink} />
           </View>
         ) : (
-          <View style={[styles.timerCircle, { borderColor: timerColor }]}>
-            <Text style={[styles.timerText, { color: timerColor }]} testID="quiz-timer">{secondsLeft}</Text>
+          <View style={[styles.timerCircle, { backgroundColor: urgent ? colors.error : colors.gold }]}>
+            <Text style={[styles.timerText, { color: urgent ? "#FFFFFF" : colors.ink }]} testID="quiz-timer">{secondsLeft}</Text>
           </View>
         )}
         {streak > 1 && (
           <View style={styles.streakPill} testID="quiz-streak">
-            <Ionicons name="flame" size={13} color={colors.gold} />
+            <Ionicons name="flame" size={13} color={colors.warning} />
             <Text style={styles.streakText}>{streak} streak</Text>
           </View>
         )}
@@ -326,20 +324,30 @@ export default function Quiz() {
 
       <View style={styles.options}>
         {q.options.map((opt, i) => (
-          <Pressable
+          <Sticker
             key={i}
             testID={`quiz-option-${i}`}
-            style={optionStyle(i)}
+            fill={optionFill(i)}
+            radius={radius.lg}
+            style={locked && i !== q.correct_index && i !== selected ? { opacity: 0.45 } : undefined}
+            contentStyle={styles.option}
+            disabled={locked}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               handleAnswer(i);
             }}
-            disabled={locked}
           >
-            <Text style={optionTextStyle(i)}>{opt}</Text>
-            {locked && i === q.correct_index && <Ionicons name="checkmark-circle" size={22} color={colors.success} />}
-            {locked && i === selected && i !== q.correct_index && <Ionicons name="close-circle" size={22} color={colors.error} />}
-          </Pressable>
+            <Text
+              style={[
+                styles.optionText,
+                locked && i === selected && i !== q.correct_index && { color: "#FFFFFF" },
+              ]}
+            >
+              {opt}
+            </Text>
+            {locked && i === q.correct_index && <Ionicons name="checkmark-circle" size={24} color={colors.ink} />}
+            {locked && i === selected && i !== q.correct_index && <Ionicons name="close-circle" size={24} color="#FFFFFF" />}
+          </Sticker>
         ))}
       </View>
 
@@ -358,15 +366,17 @@ const styles = StyleSheet.create({
   retryText: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg },
   quitText: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: fontSize.base },
   topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  quitBtn: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center" },
-  qCounter: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: fontSize.base },
-  scorePill: { flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: colors.surfaceSecondary, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.pill },
-  scoreText: { color: colors.onSurface, fontFamily: fonts.displayBold, fontSize: fontSize.lg },
+  quitBtn: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary, borderWidth: 2, borderColor: colors.ink, alignItems: "center", justifyContent: "center" },
+  qCounter: { color: colors.onSurface, fontFamily: fonts.cartoon, fontSize: 18, letterSpacing: 1 },
+  scorePill: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: spacing.xs, paddingHorizontal: spacing.md },
+  scoreText: { color: colors.ink, fontFamily: fonts.displayBold, fontSize: fontSize.lg },
   liveBar: {
     flexDirection: "row",
     gap: spacing.sm,
     marginTop: spacing.md,
     backgroundColor: colors.surfaceSecondary,
+    borderWidth: 2,
+    borderColor: colors.ink,
     borderRadius: radius.md,
     padding: spacing.sm,
   },
@@ -386,27 +396,22 @@ const styles = StyleSheet.create({
   liveName: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: 11, maxWidth: 64 },
   liveScore: { color: colors.onSurface, fontFamily: fonts.displayBold, fontSize: fontSize.sm },
   timerWrap: { alignItems: "center", marginTop: spacing.xl },
-  streakPill: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.sm, backgroundColor: colors.surfaceTertiary, paddingVertical: 4, paddingHorizontal: spacing.md, borderRadius: radius.pill },
-  streakText: { color: colors.gold, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },  timerCircle: { width: 96, height: 96, borderRadius: 48, borderWidth: 4, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceSecondary },
+  streakPill: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.sm, backgroundColor: colors.surfaceTertiary, borderWidth: 2, borderColor: colors.ink, paddingVertical: 4, paddingHorizontal: spacing.md, borderRadius: radius.pill },
+  streakText: { color: colors.warning, fontFamily: fonts.cartoon, fontSize: 14, letterSpacing: 0.5 },
+  timerCircle: { width: 96, height: 96, borderRadius: 48, borderWidth: 5, borderColor: colors.ink, alignItems: "center", justifyContent: "center" },
   timerText: { fontFamily: fonts.displayBold, fontSize: 46 },
   questionWrap: { marginTop: spacing.xl, minHeight: 90, justifyContent: "center" },
-  question: { color: colors.onSurface, fontFamily: fonts.bodyMedium, fontSize: fontSize["2xl"], lineHeight: 32, textAlign: "center" },
+  question: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize["2xl"], lineHeight: 32, textAlign: "center" },
   options: { flex: 1, gap: spacing.md, marginTop: spacing.lg },
   option: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: colors.surfaceSecondary,
-    borderWidth: 1,
-    borderColor: colors.border,
-    borderRadius: radius.md,
-    paddingVertical: spacing.lg,
+    paddingVertical: spacing.md,
     paddingHorizontal: spacing.lg,
-    minHeight: 60,
+    minHeight: 58,
   },
-  optionCorrect: { borderColor: colors.success, backgroundColor: tints.correct },
-  optionWrong: { borderColor: colors.error, backgroundColor: tints.wrong },
-  optionText: { color: colors.onSurfaceSecondary, fontFamily: fonts.body, fontSize: fontSize.lg, flex: 1 },
-  progressTrack: { height: 4, backgroundColor: colors.surfaceTertiary, borderRadius: 2, marginBottom: spacing.lg },
-  progressFill: { height: 4, backgroundColor: colors.brandPrimary, borderRadius: 2 },
+  optionText: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg, flex: 1 },
+  progressTrack: { height: 10, backgroundColor: colors.surfaceTertiary, borderWidth: 2, borderColor: colors.ink, borderRadius: 5, marginBottom: spacing.lg, overflow: "hidden" },
+  progressFill: { height: "100%", backgroundColor: colors.brandPrimary },
 });

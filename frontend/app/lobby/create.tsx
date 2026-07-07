@@ -84,6 +84,6 @@ const styles = StyleSheet.create({
   perkRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   perkIcon: { width: 32, height: 32, borderRadius: radius.sm, backgroundColor: colors.brandTertiary, alignItems: "center", justifyContent: "center" },
   perkText: { flex: 1, color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: fontSize.base },
-  createBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: colors.brandPrimary, height: 56, borderRadius: radius.md, marginTop: spacing.sm },
-  createText: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg },
+  createBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: colors.brandPrimary, height: 56, borderRadius: radius.md, borderWidth: 3, borderColor: colors.ink, marginTop: spacing.sm },
+  createText: { color: colors.onBrandPrimary, fontFamily: fonts.cartoon, fontSize: 22, letterSpacing: 1 },
 });
