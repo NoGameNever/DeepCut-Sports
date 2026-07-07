@@ -12,6 +12,8 @@ import { api } from "@/src/api/client";
 import { useAuth } from "@/src/context/AuthContext";
 import { useToast } from "@/src/components/Toast";
 import { UserAvatar } from "@/src/components/UserAvatar";
+import { ProgressionModal } from "@/src/components/ProgressionModal";
+import { consumePendingProgression } from "@/src/state/progressionEvent";
 import { summarize, catIcon, gameTypeLabel } from "@/src/constants/lobbySettings";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
@@ -27,8 +29,14 @@ export default function LobbyRoom() {
   const [friends, setFriends] = useState<any[]>([]);
   const [starting, setStarting] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [progressionSummary, setProgressionSummary] = useState<any>(null);
   const navigatedRef = useRef(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    const p = consumePendingProgression();
+    if (p) setProgressionSummary(p);
+  }, []);
 
   const myMember = lobby?.members?.find((m: any) => m.user_id === user?.user_id);
   const isHost = lobby?.is_host;
@@ -170,6 +178,11 @@ export default function LobbyRoom() {
       <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 160 }} showsVerticalScrollIndicator={false}>
         {showStandings ? (
           <View style={styles.section}>
+            {progressionSummary && progressionSummary.xp_gained > 0 && (
+              <View style={styles.xpEarned} testID="lobby-xp-gained">
+                <Text style={styles.xpEarnedText}>+{progressionSummary.xp_gained} Knowledge XP</Text>
+              </View>
+            )}
             {standings.map((m, i) => (
               <View key={m.user_id} style={[styles.standRow, i === 0 && styles.standWinner]} testID={`standing-${i}`}>
                 <Text style={[styles.standRank, i === 0 && { color: colors.brandPrimary }]}>{i + 1}</Text>
@@ -311,6 +324,8 @@ export default function LobbyRoom() {
           </Pressable>
         </View>
       )}
+
+      <ProgressionModal summary={progressionSummary} onClose={() => setProgressionSummary({ ...progressionSummary, leveled_up: false, tier_changed: false, unlocked_achievements: [] })} />
     </View>
   );
 }
@@ -349,6 +364,8 @@ const styles = StyleSheet.create({
   waitText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: fontSize.base },
   empty: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: fontSize.base },
   standRow: { flexDirection: "row", alignItems: "center", gap: spacing.md, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.sm },
+  xpEarned: { alignItems: "center", backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.gold, borderRadius: radius.md, paddingVertical: spacing.sm, marginBottom: spacing.md },
+  xpEarnedText: { color: colors.gold, fontFamily: fonts.displayBold, fontSize: fontSize.xl },
   standWinner: { borderWidth: 1, borderColor: colors.brandPrimary },
   standRank: { color: colors.onSurfaceSecondary, fontFamily: fonts.displayBold, fontSize: fontSize.xl, width: 24, textAlign: "center" },
   standScore: { color: colors.onSurface, fontFamily: fonts.displayBold, fontSize: fontSize.xl },

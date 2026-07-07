@@ -17,6 +17,8 @@ from pydantic import BaseModel, Field
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage
 
+import progression as prog
+
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / ".env")
 
@@ -74,6 +76,16 @@ class Question(BaseModel):
     question: str
     options: List[str]
     correct_index: int
+    difficulty: Optional[str] = None
+    tags: List[str] = []
+    deep_cut: bool = False
+
+
+class AnswerDetail(BaseModel):
+    correct: bool
+    difficulty: Optional[str] = None
+    tags: List[str] = []
+    deep_cut: bool = False
 
 
 class SubmitRequest(BaseModel):
@@ -82,6 +94,7 @@ class SubmitRequest(BaseModel):
     score: int
     correct: int
     total: int
+    answers: Optional[List[AnswerDetail]] = None
 
 
 # ---------- Auth helpers ----------
@@ -213,6 +226,12 @@ def _user_out(u: dict) -> dict:
         "total_answers": u.get("total_answers", 0),
         "best_sport": u.get("best_sport"),
         "sport_scores": u.get("sport_scores", {}),
+        "level": u.get("level", 1),
+        "lifetime_xp": u.get("lifetime_xp", 0),
+        "weekly_xp": prog.effective_weekly_xp(u),
+        "rank_tier": u.get("rank_tier", "casual"),
+        "current_streak": u.get("current_streak", 0),
+        "best_streak": u.get("best_streak", 0),
     }
 
 
@@ -341,7 +360,11 @@ async def generate_quiz(body: QuizRequest, authorization: Optional[str] = Header
         "Vary the topics (history, records, players, rules, famous events). "
         "Return a JSON array where each item is an object with exactly these keys: "
         '"question" (string), "options" (array of exactly 4 distinct strings), '
-        '"correct_index" (integer 0-3 indicating the correct option). '
+        '"correct_index" (integer 0-3 indicating the correct option), '
+        '"difficulty" (one of "easy","medium","hard"), '
+        '"tags" (array containing any of "stats","history","film" that apply — "stats" for stat/record/number questions, '
+        '"history" for past events/drafts/awards/playoff moments, "film" for play-style/roles/rosters/schemes; may be empty), '
+        '"deep_cut" (boolean, true only for obscure deep-cut questions hardcore fans would know). '
         "Do not number the questions. Output only the JSON array."
     )
     chat = LlmChat(
@@ -370,6 +393,9 @@ async def generate_quiz(body: QuizRequest, authorization: Optional[str] = Header
             question=str(it.get("question", "")).strip(),
             options=[str(o) for o in opts],
             correct_index=ci,
+            difficulty=str(it.get("difficulty") or body.difficulty).lower(),
+            tags=[t for t in (it.get("tags") or []) if t in ("stats", "history", "film")],
+            deep_cut=bool(it.get("deep_cut")),
         ))
     if not questions:
         raise HTTPException(status_code=502, detail="No valid questions generated")
@@ -396,39 +422,109 @@ async def submit_quiz(body: SubmitRequest, authorization: Optional[str] = Header
             "$set": {"sport_scores": sport_scores, "best_sport": best_sport},
         },
     )
+    # Knowledge XP + achievements
+    answers = ([a.model_dump() for a in body.answers] if body.answers
+               else [{"correct": True, "difficulty": body.difficulty}] * body.correct
+               + [{"correct": False, "difficulty": body.difficulty}] * max(body.total - body.correct, 0))
+    progression = await prog.process_quiz_answers(db, user, answers, fallback_difficulty=body.difficulty)
+
     updated = await db.users.find_one({"user_id": user_id}, {"_id": 0})
-    rank = await db.users.count_documents({"total_score": {"$gt": updated["total_score"]}}) + 1
-    return {"user": updated, "rank": rank, "gained": body.score}
+    rank = await db.users.count_documents({"lifetime_xp": {"$gt": updated.get("lifetime_xp", 0)}}) + 1
+    return {"user": _user_out(updated), "rank": rank, "gained": body.score, "progression": progression}
+
+
+@api_router.get("/progression")
+async def get_progression(authorization: Optional[str] = Header(None)):
+    user = await get_current_user(authorization)
+    return await prog.progression_payload(db, user)
+
+
+def _lb_accuracy(u: dict) -> int:
+    t = u.get("total_answers", 0)
+    return round((u.get("correct_answers", 0) / t) * 100) if t else 0
+
+
+async def _lb_badges(user_ids: list) -> dict:
+    """Batch: per-user unlocked achievement count + featured (highest rarity) badge."""
+    docs = await db.user_achievements.find({"user_id": {"$in": user_ids}}, {"_id": 0}).to_list(1000)
+    out = {}
+    for d in docs:
+        a = prog.ACHIEVEMENTS_BY_ID.get(d["achievement_id"])
+        if not a:
+            continue
+        e = out.setdefault(d["user_id"], {"badge_count": 0, "featured": None})
+        e["badge_count"] += 1
+        if not e["featured"] or prog.RARITY_ORDER[a["rarity"]] > prog.RARITY_ORDER[e["featured"]["rarity"]]:
+            e["featured"] = {"id": a["id"], "name": a["name"], "icon": a["icon"], "rarity": a["rarity"]}
+    return out
+
+
+def _lb_row(u: dict, xp: int, i: int, badges: dict) -> dict:
+    tier = prog.rank_tier_for_xp(u.get("lifetime_xp", 0))
+    b = badges.get(u["user_id"], {"badge_count": 0, "featured": None})
+    return {
+        "rank": i + 1,
+        "user_id": u["user_id"],
+        "name": _effective_name(u),
+        "tagline": u.get("tagline"),
+        "picture": _effective_picture(u),
+        "level": u.get("level", 1),
+        "xp": xp,
+        "tier": {"key": tier["key"], "name": tier["name"], "icon": tier["icon"]},
+        "accuracy": _lb_accuracy(u),
+        "streak": u.get("current_streak", 0),
+        "badge_count": b["badge_count"],
+        "featured": b["featured"],
+    }
+
+
+LEADERBOARD_BOARDS = {"global_alltime", "global_weekly", "friends_alltime", "friends_weekly"}
 
 
 @api_router.get("/leaderboard")
-async def leaderboard(authorization: Optional[str] = Header(None)):
+async def leaderboard(board: str = "global_alltime", authorization: Optional[str] = Header(None)):
     me = await get_current_user(authorization)
-    top_docs = await db.users.find({}, {"_id": 0}).sort("total_score", -1).limit(50).to_list(50)
-    top = []
-    for i, u in enumerate(top_docs):
-        top.append({
-            "rank": i + 1,
-            "user_id": u["user_id"],
-            "name": _effective_name(u),
-            "tagline": u.get("tagline"),
-            "picture": _effective_picture(u),
-            "total_score": u.get("total_score", 0),
-            "matches": u.get("matches", 0),
-        })
-    my_rank = await db.users.count_documents({"total_score": {"$gt": me.get("total_score", 0)}}) + 1
-    return {
-        "top": top,
-        "me": {
-            "rank": my_rank,
-            "user_id": me["user_id"],
-            "name": _effective_name(me),
-            "tagline": me.get("tagline"),
-            "picture": _effective_picture(me),
-            "total_score": me.get("total_score", 0),
-            "matches": me.get("matches", 0),
-        },
-    }
+    if board not in LEADERBOARD_BOARDS:
+        raise HTTPException(status_code=400, detail="Invalid board")
+    weekly = board.endswith("weekly")
+
+    if board.startswith("friends"):
+        fs = await db.friendships.find(
+            {"status": "accepted", "$or": [
+                {"requester_user_id": me["user_id"]}, {"receiver_user_id": me["user_id"]}]},
+            {"_id": 0},
+        ).to_list(200)
+        ids = {me["user_id"]}
+        for f in fs:
+            ids.add(f["requester_user_id"])
+            ids.add(f["receiver_user_id"])
+        docs = await db.users.find({"user_id": {"$in": list(ids)}}, {"_id": 0}).to_list(len(ids))
+    else:
+        if weekly:
+            docs = await db.users.find(
+                {"week_key": prog.current_week_key(), "weekly_xp": {"$gt": 0}}, {"_id": 0}
+            ).sort("weekly_xp", -1).limit(50).to_list(50)
+        else:
+            docs = await db.users.find({}, {"_id": 0}).sort("lifetime_xp", -1).limit(50).to_list(50)
+
+    scored = [(u, prog.effective_weekly_xp(u) if weekly else u.get("lifetime_xp", 0)) for u in docs]
+    scored.sort(key=lambda p: p[1], reverse=True)
+    scored = scored[:50]
+
+    badges = await _lb_badges([u["user_id"] for u, _ in scored])
+    top = [_lb_row(u, xp, i, badges) for i, (u, xp) in enumerate(scored)]
+
+    my_xp = prog.effective_weekly_xp(me) if weekly else me.get("lifetime_xp", 0)
+    my_rank = next((r["rank"] for r in top if r["user_id"] == me["user_id"]), None)
+    if my_rank is None:
+        if weekly:
+            my_rank = await db.users.count_documents(
+                {"week_key": prog.current_week_key(), "weekly_xp": {"$gt": my_xp}}) + 1
+        else:
+            my_rank = await db.users.count_documents({"lifetime_xp": {"$gt": my_xp}}) + 1
+    me_badges = await _lb_badges([me["user_id"]])
+    me_row = _lb_row(me, my_xp, my_rank - 1, me_badges)
+    return {"board": board, "top": top, "me": me_row}
 
 
 @api_router.get("/sports")
@@ -602,42 +698,6 @@ async def _lobby_detail(lobby: dict, me: str):
     }
 
 
-async def _generate_questions(sport, difficulty, era, count=7):
-    sport_name = SPORTS[sport]
-    era_instruction = ERAS[era]
-    count = max(3, min(count, 10))
-    system = (
-        "You are a sports trivia question generator. You output ONLY valid JSON, no prose, "
-        "no markdown fences. Each question must be factually accurate and unambiguous."
-    )
-    prompt = (
-        f"Generate {count} {difficulty}-difficulty multiple-choice trivia questions about {sport_name}. "
-        f"{era_instruction} Vary the topics. "
-        'Return a JSON array; each item has keys "question" (string), "options" (array of exactly 4 distinct '
-        'strings), "correct_index" (integer 0-3). Output only the JSON array.'
-    )
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"quiz_{uuid.uuid4().hex}", system_message=system).with_model(
-        "gemini", "gemini-3-flash-preview"
-    )
-    raw = await chat.send_message(UserMessage(text=prompt))
-    items = _parse_json_array(raw)
-    out = []
-    for it in items:
-        opts = it.get("options", [])
-        ci = it.get("correct_index", 0)
-        if not isinstance(opts, list) or len(opts) != 4:
-            continue
-        if not isinstance(ci, int) or ci < 0 or ci > 3:
-            ci = 0
-        out.append({
-            "id": uuid.uuid4().hex,
-            "question": str(it.get("question", "")).strip(),
-            "options": [str(o) for o in opts],
-            "correct_index": ci,
-        })
-    return out
-
-
 # ---------- Lobby settings ----------
 GAME_TYPES_SUPPORTED = {"classic", "lightning", "streak", "deepcut"}
 GAME_TYPES_COMINGSOON = {"survival", "wager", "team"}
@@ -790,7 +850,11 @@ async def _generate_lobby_questions(settings: dict):
     prompt = (
         f"Generate {count} {diff_text}-difficulty sports trivia questions about {cats}, {era_text}.{sub_text} "
         f"Vary the topics. Return a JSON array where {fmt_text}. "
-        'Each item also has a "question" key (string). Output only the JSON array.'
+        'Each item also has a "question" key (string), a "difficulty" key (one of "easy","medium","hard"), '
+        'a "tags" key (array containing any of "stats","history","film" that apply — "stats" for stat/record/number '
+        'questions, "history" for past events/drafts/awards/playoff moments, "film" for play-style/roles/rosters/schemes; '
+        'may be empty), and a "deep_cut" key (boolean, true only for obscure deep-cut questions hardcore fans would know). '
+        "Output only the JSON array."
     )
     chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"lobby_{uuid.uuid4().hex}", system_message=system).with_model(
         "gemini", "gemini-3-flash-preview"
@@ -810,6 +874,9 @@ async def _generate_lobby_questions(settings: dict):
             "question": str(it.get("question", "")).strip(),
             "options": [str(o) for o in opts],
             "correct_index": ci,
+            "difficulty": str(it.get("difficulty") or {"casual": "easy", "normal": "medium", "mixed": "medium"}.get(diff, "hard")).lower(),
+            "tags": [t for t in (it.get("tags") or []) if t in ("stats", "history", "film")],
+            "deep_cut": bool(it.get("deep_cut")) or settings["game_type"] == "deepcut",
         })
     return out
 
@@ -835,6 +902,7 @@ class LobbyScoreBody(BaseModel):
     score: int
     correct: int
     total: int
+    answers: Optional[List[AnswerDetail]] = None
 
 
 class LobbyProgressBody(BaseModel):
@@ -1293,7 +1361,9 @@ async def submit_lobby_score(lobby_id: str, body: LobbyScoreBody, authorization:
     lobby = await _require_member(lobby_id, me["user_id"])
     member = await db.lobby_members.find_one({"lobby_id": lobby_id, "user_id": me["user_id"]}, {"_id": 0})
     if member.get("finished"):
-        return await _lobby_detail(lobby, me["user_id"])  # idempotent
+        detail = await _lobby_detail(lobby, me["user_id"])  # idempotent
+        detail["progression"] = None
+        return detail
     await db.lobby_members.update_one(
         {"lobby_id": lobby_id, "user_id": me["user_id"]},
         {"$set": {"score": body.score, "finished": True}},
@@ -1309,13 +1379,44 @@ async def submit_lobby_score(lobby_id: str, body: LobbyScoreBody, authorization:
         {"$inc": {"total_score": body.score, "matches": 1, "correct_answers": body.correct, "total_answers": body.total},
          "$set": {"sport_scores": sport_scores, "best_sport": best_sport}},
     )
-    # if everyone finished, mark completed
+    # Knowledge XP + achievements for my answers
+    fallback_diff = {"casual": "easy", "normal": "medium", "mixed": "medium"}.get(
+        (lobby.get("settings") or DEFAULT_SETTINGS).get("difficulty", "normal"), "hard")
+    answers = ([a.model_dump() for a in body.answers] if body.answers
+               else [{"correct": True, "difficulty": fallback_diff}] * body.correct
+               + [{"correct": False, "difficulty": fallback_diff}] * max(body.total - body.correct, 0))
+    progression = await prog.process_quiz_answers(db, u, answers, fallback_difficulty=fallback_diff)
+
+    # if everyone finished, mark completed + award match win XP to winner(s)
     total_m = await _member_count(lobby_id)
     fin_m = await db.lobby_members.count_documents({"lobby_id": lobby_id, "finished": True})
     if fin_m >= total_m:
-        await db.lobbies.update_one({"id": lobby_id}, {"$set": {"status": "completed"}})
+        res = await db.lobbies.update_one(
+            {"id": lobby_id, "status": {"$ne": "completed"}}, {"$set": {"status": "completed"}}
+        )
         lobby["status"] = "completed"
-    return await _lobby_detail(lobby, me["user_id"])
+        if res.modified_count:  # award wins exactly once
+            all_m = await db.lobby_members.find({"lobby_id": lobby_id}, {"_id": 0}).to_list(10)
+            best_score = max((m.get("score") or 0) for m in all_m)
+            for m in all_m:
+                if (m.get("score") or 0) == best_score:
+                    win_summary = await prog.award_match_win(db, m["user_id"])
+                    if m["user_id"] == me["user_id"]:
+                        # fold my win XP into my returned summary
+                        progression["xp_gained"] += win_summary["xp_gained"]
+                        progression["breakdown"] += win_summary["breakdown"]
+                        progression["level"] = win_summary["level"]
+                        progression["leveled_up"] = progression["leveled_up"] or win_summary["level"] > progression["previous_level"]
+                        progression["new_rewards"] = progression["new_rewards"] + [
+                            r for r in win_summary["new_rewards"] if r["id"] not in {x["id"] for x in progression["new_rewards"]}]
+                        progression["unlocked_achievements"] += win_summary["unlocked_achievements"]
+                        progression["tier"] = win_summary["tier"]
+                        progression["tier_changed"] = progression["tier_changed"] or win_summary["tier_changed"]
+                        progression["lifetime_xp"] = win_summary["lifetime_xp"]
+                        progression["weekly_xp"] = win_summary["weekly_xp"]
+    detail = await _lobby_detail(lobby, me["user_id"])
+    detail["progression"] = progression
+    return detail
 
 
 # ---------- In-app lobby invites (friend) ----------
@@ -1406,6 +1507,11 @@ async def startup():
     await db.lobby_members.create_index([("lobby_id", 1), ("user_id", 1)])
     await db.lobby_invites.create_index("invited_user_id")
     await db.lobby_invites.create_index("lobby_id")
+    await db.users.create_index([("lifetime_xp", -1)])
+    await db.users.create_index([("week_key", 1), ("weekly_xp", -1)])
+    await db.user_achievements.create_index([("user_id", 1), ("achievement_id", 1)], unique=True)
+    await db.xp_events.create_index([("user_id", 1), ("created_at", -1)])
+    await prog.seed_sample_users(db)
 
 
 @app.on_event("shutdown")

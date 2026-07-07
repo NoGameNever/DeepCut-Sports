@@ -1,0 +1,42 @@
+{
+  "summary": "Full-stack testing of the new Knowledge XP + Player Leveling + Rank Tiers + Achievements + 4-way Leaderboards feature. Backend: 15/15 pytest tests pass in new /app/backend/tests/test_progression.py covering /api/progression payload shape, XP math (easy/med/hard/deep_cut + streak bonuses at 3/5/10), Aura+100 idempotent unlock at 7-streak, streak persistence across submits, xp_events collection logging (correct_answer + streak_bonus sources), level threshold (profile_border unlock at L5/850XP), all 4 leaderboard boards + invalid=400 + GoatedGreg=52k top + friends-empty=me-only, regression on /auth/me + /sports + /friends + /lobbies create + /lobbies/{id}/live, and lobby match-win flow (winner gets +100 match_win XP folded into progression, counters.match_wins++ exactly once even on repeat /score submit, xp_events includes match_win source). Frontend: Home (authenticated as Christopher McCarthy via seeded session), Leaderboard tab (all 4 tab pills work — GLOBAL/FRIENDS x ALL-TIME/WEEKLY; global all-time shows GoatedGreg first with 52,000 XP; weekly shows different XP amounts; sticky 'You' row at bottom; 8 rows rendered), Profile tab (Player Level card level 4 with progress bar, Ball Watcher tier card with tagline + progress to Ball Knower, 6 career stat cards, 7 level rewards rail with 🔒 locks, 8 achievements incl. Nostradamus 'Coming soon' + Aura visible).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Leaderboard (Friends tab empty state)",
+        "issue": "The 'Add friends to see who really knows ball.' empty-state message never renders because backend /api/leaderboard?board=friends_alltime always returns me as the sole row in data.top when I have no accepted friends, so data?.top.length === 0 is false and ListEmptyComponent doesn't fire. UX result: user sees themself alone in top AND again as sticky 'You', with no messaging that they should add friends. Suggest changing the check at leaderboard.tsx:122-136 to also fire empty state when scope==='friends' and top.length<=1 and top[0].user_id===user.user_id.",
+        "testID": "leaderboard-empty",
+        "priority": "MEDIUM"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_progression.py",
+    "/app/test_reports/pytest/progression_results.xml"
+  ],
+  "action_items": [
+    "(UX) leaderboard.tsx: fire the 'Add friends to see who really knows ball.' empty-state when the friends board top has only me (currently unreachable because backend always includes me in the friends list).",
+    "No backend fixes required — all 15 pytest tests pass, all requested backend flows verified including the previously-untested lobby match-win XP flow, xp_events logging, and L5 reward unlock."
+  ],
+  "critical_code_review_comments": [
+    "server.py:1402-1416 lobby match-win folding: correctly gates match-win XP behind `if res.modified_count` (using update_one status change from non-completed to completed) so match_wins is awarded exactly once across concurrent /score calls — verified via idempotency test.",
+    "progression.py:243-268 check_achievements loop runs a second pass so that XP awarded from an achievement can push the user across a rank/level threshold and unlock additional achievements in the same request — nice defensive design; also guards duplicates via update_one with $setOnInsert + upsert.",
+    "progression.py:174-175 effective_weekly_xp returns 0 when week_key differs from current — but lazy weekly reset in award_xp_batch only runs when XP is being awarded. Users who don't play for a week will show stale weekly_xp in /api/progression if _finalize_summary isn't called. Currently mitigated by effective_weekly_xp gating, so functionally fine but the underlying stored value can drift.",
+    "server.py:485-527 leaderboard: friends board always includes me in the pool (ids = {me['user_id']} union friends). This is fine for showing my own row but conflicts with the frontend's ListEmptyComponent logic — see the ui_bug above.",
+    "server.py:1385-1388 lobby /score: fallback_diff for a 'normal' lobby maps to 'hard' (via `{...}.get(..., 'hard')`). This is because DIFFICULTIES here are lobby-difficulties (casual/normal/hard/expert/deepcut/mixed) whereas progression XP uses solo-quiz difficulties (easy/medium/hard). The 'normal' mapping to 'hard' feels off — most 'normal' lobby answers will earn 25 XP each instead of 15. Consider mapping normal→medium (which XP_CORRECT has as 15). This is a design/intent question rather than a bug.",
+    "progression.py:104 XP_CORRECT includes both 'medium' and 'normal' as 15 XP already, so the fallback_diff='hard' choice for normal lobbies at server.py:1384 appears inconsistent. Either drop the mapping (rely on XP_CORRECT.get(diff, 15)) or map normal→medium."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_progression.py (new — 15 tests for progression + leaderboard + lobby match-win)"
+  ],
+  "success_rate": {"backend": "100% (15/15 new tests, +44/44 previous suites still green after re-run of the impacted areas)", "frontend": "~95% — all key screens render; 1 minor UX empty-state issue on Friends leaderboard"},
+  "seed_data_creation": "Each backend test class creates its own TEST_ user via _mk_user(mongo_db, name='TEST_*') + user_sessions doc (1d expiry) and fully cleans up user/session/user_achievements/xp_events/friendships in _cleanup(). Lobby match-win test seeds a full active lobby with 2 members and 3 fake questions directly in Mongo. No mutation of the shared user_7b917a788ff2 or seed leaderboard users. Frontend testing used the existing sess_sporttest_334a0f session (extended when needed) attached to user_7b917a788ff2 — its XP/level state will drift as the app is used, which is expected per the main-agent context note.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "Backend progression system is stable — reuse /app/backend/tests/test_progression.py for regression. The one open item is a small UX empty-state on the Friends leaderboard tab (leaderboard.tsx:122-136); backend behavior is correct. If the main agent decides to change the fallback_diff mapping for lobby /score at server.py:1385 (normal→medium instead of hard), the existing test_progression tests won't break but you may want to add a targeted assertion.",
+  "rca_of_issue": "N/A — no functional bugs found. The single medium-priority UX finding is documented in frontend_issues.ui_bugs with the exact fix location and logic to change."
+}

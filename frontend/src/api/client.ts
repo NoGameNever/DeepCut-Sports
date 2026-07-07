@@ -55,8 +55,10 @@ export const api = {
     score: number;
     correct: number;
     total: number;
+    answers?: any[];
   }) => request<any>("/quiz/submit", { method: "POST", body: payload }),
-  leaderboard: () => request<any>("/leaderboard"),
+  leaderboard: (board = "global_alltime") => request<any>(`/leaderboard?board=${board}`),
+  progression: () => request<any>("/progression"),
 
   // ----- Profile -----
   getProfile: () => request<any>("/profile"),
@@ -100,7 +102,7 @@ export const api = {
     request(`/lobbies/${id}/progress`, { method: "POST", body: payload }),
   lobbyLive: (id: string) =>
     request<{ status: string; question_count: number; players: any[] }>(`/lobbies/${id}/live`),
-  submitLobbyScore: (id: string, payload: { score: number; correct: number; total: number }) =>
+  submitLobbyScore: (id: string, payload: { score: number; correct: number; total: number; answers?: any[] }) =>
     request<any>(`/lobbies/${id}/score`, { method: "POST", body: payload }),
   myLobbyInvites: () => request<any[]>("/lobby-invites"),
   acceptLobbyInvite: (invite_id: string) =>

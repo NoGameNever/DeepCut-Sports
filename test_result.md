@@ -101,3 +101,10 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+## Session June 2026 — XP & Leveling System
+- Implemented full Knowledge XP + Player Level system (/app/backend/progression.py, wired into server.py).
+- New endpoints: GET /api/progression, GET /api/leaderboard?board={global|friends}_{alltime|weekly}.
+- Modified: POST /api/quiz/submit + POST /api/lobbies/{id}/score (accept `answers`, return `progression` summary; match winner gets +100 match_win XP).
+- Rank tiers (7), leveling curve (spec-exact after L10: L11=6600, L12=9350, L13=12350), level rewards at 5/10/15/20/30/40/50, 8 achievements (nostradamus is coming_soon), xp_events audit log, weekly reset lazy w/ weekly_history preservation.
+- Frontend: leaderboard tabs (4 boards), profile progression sections, results XP badge + ProgressionModal, lobby standings XP + modal.
+- Main-agent verified via curl: XP math, level-up, achievement unlock idempotency, 4 leaderboards, seed users.

@@ -6,12 +6,13 @@ import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, ZoomIn } from "react-native-reanimated";
 import { api } from "@/src/api/client";
 import { useAuth } from "@/src/context/AuthContext";
+import { ProgressionModal } from "@/src/components/ProgressionModal";
 import { sportName, timerOption, eraOption } from "@/src/constants/sports";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
 export default function Results() {
-  const { sport, difficulty, timer, era, score, correct, total } = useLocalSearchParams<{
-    sport: string; difficulty: string; timer: string; era: string; score: string; correct: string; total: string;
+  const { sport, difficulty, timer, era, score, correct, total, answers } = useLocalSearchParams<{
+    sport: string; difficulty: string; timer: string; era: string; score: string; correct: string; total: string; answers?: string;
   }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -24,12 +25,22 @@ export default function Results() {
 
   const [rank, setRank] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(true);
+  const [progression, setProgression] = useState<any>(null);
+  const [showModal, setShowModal] = useState(false);
 
   useEffect(() => {
     (async () => {
       try {
-        const res = await api.submitQuiz({ sport, difficulty, score: scoreN, correct: correctN, total: totalN });
+        let parsed: any[] | undefined;
+        try { parsed = answers ? JSON.parse(answers) : undefined; } catch {}
+        const res = await api.submitQuiz({ sport, difficulty, score: scoreN, correct: correctN, total: totalN, answers: parsed });
         setRank(res.rank);
+        if (res.progression) {
+          setProgression(res.progression);
+          if (res.progression.leveled_up || res.progression.tier_changed || res.progression.unlocked_achievements?.length) {
+            setShowModal(true);
+          }
+        }
         await refresh();
       } catch {}
       finally {
@@ -61,6 +72,13 @@ export default function Results() {
           <Ionicons name="flame" size={15} color={colors.brandPrimary} />
           <Text style={styles.multBadgeText}>×{multiplier.toFixed(2)} multiplier applied</Text>
         </Animated.View>
+
+        {progression && progression.xp_gained > 0 && (
+          <Animated.View entering={FadeInDown.delay(250)} style={styles.xpBadge} testID="results-xp-gained">
+            <Text style={styles.xpBadgeText}>+{progression.xp_gained} Knowledge XP</Text>
+            <Text style={styles.xpBadgeSub}>Lv {progression.level} · {progression.tier?.icon} {progression.tier?.name}</Text>
+          </Animated.View>
+        )}
       </View>
 
       <Animated.View entering={FadeInDown.delay(250)} style={styles.statGrid}>
@@ -95,6 +113,8 @@ export default function Results() {
       <Pressable testID="results-home-button" onPress={() => router.replace("/(tabs)")} style={styles.homeLink}>
         <Text style={styles.homeText}>Back to Home</Text>
       </Pressable>
+
+      {showModal && <ProgressionModal summary={progression} onClose={() => setShowModal(false)} />}
     </View>
   );
 }
@@ -119,6 +139,9 @@ const styles = StyleSheet.create({
     marginTop: spacing.md,
   },
   multBadgeText: { color: colors.onBrandTertiary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },
+  xpBadge: { alignItems: "center", marginTop: spacing.md, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.gold, borderRadius: radius.md, paddingVertical: spacing.sm, paddingHorizontal: spacing.lg },
+  xpBadgeText: { color: colors.gold, fontFamily: fonts.displayBold, fontSize: fontSize.xl },
+  xpBadgeSub: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: fontSize.sm, marginTop: 2 },
   statGrid: { flexDirection: "row", gap: spacing.md, marginTop: spacing.xxl },
   statCard: { flex: 1, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, paddingVertical: spacing.lg, alignItems: "center", gap: spacing.xs, minHeight: 78, justifyContent: "center" },
   statValue: { color: colors.onSurface, fontFamily: fonts.displayBold, fontSize: 26 },

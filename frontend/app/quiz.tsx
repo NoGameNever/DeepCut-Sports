@@ -10,11 +10,15 @@ import { sportName, timerOption, eraOption } from "@/src/constants/sports";
 import { useToast } from "@/src/components/Toast";
 import { UserAvatar } from "@/src/components/UserAvatar";
 import { useAuth } from "@/src/context/AuthContext";
+import { setPendingProgression } from "@/src/state/progressionEvent";
 import { colors, fonts, fontSize, radius, spacing, tints } from "@/src/theme/theme";
 
 const BASE_POINTS = 100;
 
-type Q = { id: string; question: string; options: string[]; correct_index: number };
+type Q = {
+  id: string; question: string; options: string[]; correct_index: number;
+  difficulty?: string; tags?: string[]; deep_cut?: boolean;
+};
 
 export default function Quiz() {
   const { sport, difficulty, timer, era, lobbyId } = useLocalSearchParams<{
@@ -46,11 +50,13 @@ export default function Quiz() {
   const [livePlayers, setLivePlayers] = useState<any[]>([]);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const answersRef = useRef<any[]>([]);
   const progress = useSharedValue(0);
 
   const load = useCallback(async () => {
     setError(false);
     setQuestions(null);
+    answersRef.current = [];
     try {
       if (lobbyId) {
         const g = await api.lobbyGame(lobbyId);
@@ -99,7 +105,8 @@ export default function Quiz() {
       if (intervalRef.current) clearInterval(intervalRef.current);
       if (lobbyId) {
         api
-          .submitLobbyScore(lobbyId, { score: finalScore, correct: finalCorrect, total })
+          .submitLobbyScore(lobbyId, { score: finalScore, correct: finalCorrect, total, answers: answersRef.current })
+          .then((res) => { if (res?.progression) setPendingProgression(res.progression); })
           .catch(() => {})
           .finally(() => router.replace(`/lobby/${lobbyId}`));
         return;
@@ -114,6 +121,7 @@ export default function Quiz() {
           score: String(finalScore),
           correct: String(finalCorrect),
           total: String(total),
+          answers: JSON.stringify(answersRef.current),
         },
       });
     },
@@ -142,6 +150,12 @@ export default function Quiz() {
       if (intervalRef.current) clearInterval(intervalRef.current);
       const q = questions[current];
       const isCorrect = index === q.correct_index;
+      answersRef.current.push({
+        correct: isCorrect,
+        difficulty: q.difficulty || (isLobby ? undefined : difficulty),
+        tags: q.tags || [],
+        deep_cut: !!q.deep_cut,
+      });
       let newScore = score;
       let newCorrect = correctCount;
       let newStreak = streak;
@@ -170,7 +184,7 @@ export default function Quiz() {
       reportProgress(newScore, current + 1);
       setTimeout(() => advance(newScore, newCorrect), 1100);
     },
-    [locked, questions, current, score, correctCount, secondsLeft, advance, multiplier, streak, isLobby, lobbySettings, noTimer, reportProgress]
+    [locked, questions, current, score, correctCount, secondsLeft, advance, multiplier, streak, isLobby, lobbySettings, noTimer, reportProgress, difficulty]
   );
 
   // timer
