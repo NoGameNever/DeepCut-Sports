@@ -108,6 +108,7 @@ export const api = {
     request(`/lobbies/${id}/progress`, { method: "POST", body: payload }),
   lobbyLive: (id: string) =>
     request<{ status: string; question_count: number; players: any[] }>(`/lobbies/${id}/live`),
+  rematchLobby: (id: string) => request<any>(`/lobbies/${id}/rematch`, { method: "POST" }),
   submitLobbyScore: (id: string, payload: { score: number; correct: number; total: number; answers?: any[] }) =>
     request<any>(`/lobbies/${id}/score`, { method: "POST", body: payload }),
   myLobbyInvites: () => request<any[]>("/lobby-invites"),

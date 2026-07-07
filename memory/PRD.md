@@ -59,3 +59,8 @@ Build a mobile app: sports trivia app. Evolved: AI questions, timed quiz, Google
 - Restyled: home tiles/sheet, quiz (colored answer stickers, gold timer, score sticker), results (stat stickers + XP badge + sticker buttons), leaderboard (cartoon tabs, gold/silver/bronze medal rows), profile (colorful stat blocks, ink-bordered cards), lobby buttons/headers, friends headers, login button, Toast (colored sticker), ProgressionModal.
 - Tested: full frontend regression by testing_agent (iteration_5) — all flows pass, 0 errors; stat-color bug + chip toast fixed after.
 - NOTE: parallel search_replace on the SAME file can clobber edits — always edit one file sequentially.
+
+## Rematch (June 2026) — DONE
+- POST /api/lobbies/{id}/rematch (any member, completed lobbies only): clones+unlocks settings via _validate_settings into a new lobby, requester becomes host, all previous players get in-app lobby invites (visible in Friends tab).
+- Gold "Rematch" sticker button on lobby standings screen → toast + auto-navigate to new lobby room.
+- Verified e2e: settings cloned (hard/10q), 1 player re-invited shown as pending, navigation works.

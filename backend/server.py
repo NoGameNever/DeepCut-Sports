@@ -1313,6 +1313,61 @@ async def join_by_token(body: JoinBody, authorization: Optional[str] = Header(No
     return await _do_join(lobby, me["user_id"])
 
 
+@api_router.post("/lobbies/{lobby_id}/rematch")
+async def rematch_lobby(lobby_id: str, authorization: Optional[str] = Header(None)):
+    """Clone a finished lobby's settings into a new lobby and re-invite the crew."""
+    me = await get_current_user(authorization)
+    old = await _require_member(lobby_id, me["user_id"])
+    if old["status"] != "completed":
+        raise HTTPException(status_code=409, detail="Rematch is only available after the match ends")
+    settings = _validate_settings(dict(old.get("settings") or {}))
+    settings["settings_locked"] = False
+    new_id = uuid.uuid4().hex
+    lobby = {
+        "id": new_id,
+        "creator_user_id": me["user_id"],
+        "code": _gen_code(),
+        "invite_token": _gen_token(),
+        "status": "waiting",
+        "settings": settings,
+        "questions": None,
+        "rematch_of": lobby_id,
+        "created_at": _now(),
+        "updated_at": _now(),
+        "expires_at": _now() + LOBBY_TTL,
+    }
+    await db.lobbies.insert_one(lobby)
+    await db.lobby_members.insert_one({
+        "id": uuid.uuid4().hex,
+        "lobby_id": new_id,
+        "user_id": me["user_id"],
+        "role": "host",
+        "score": None,
+        "finished": False,
+        "joined_at": _now(),
+    })
+    # re-invite everyone from the previous match (no friendship check — they just played together)
+    others = await db.lobby_members.find(
+        {"lobby_id": lobby_id, "user_id": {"$ne": me["user_id"]}}, {"_id": 0}
+    ).to_list(10)
+    for m in others[: MAX_PLAYERS - 1]:
+        await db.lobby_invites.insert_one({
+            "id": uuid.uuid4().hex,
+            "lobby_id": new_id,
+            "invite_type": "friend",
+            "invited_phone_number": None,
+            "invited_user_id": m["user_id"],
+            "invite_token": None,
+            "status": "pending",
+            "created_at": _now(),
+            "expires_at": _now() + INVITE_TTL,
+            "accepted_by_user_id": None,
+        })
+    detail = await _lobby_detail(lobby, me["user_id"])
+    detail["reinvited"] = len(others[: MAX_PLAYERS - 1])
+    return detail
+
+
 @api_router.post("/lobbies/{lobby_id}/leave")
 async def leave_lobby(lobby_id: str, authorization: Optional[str] = Header(None)):
     me = await get_current_user(authorization)

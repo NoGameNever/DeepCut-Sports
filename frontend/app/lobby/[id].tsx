@@ -191,6 +191,36 @@ export default function LobbyRoom() {
                 <Text style={styles.standScore}>{m.finished ? m.score : "…"}</Text>
               </View>
             ))}
+            <Pressable
+              style={[styles.rematchBtn, busy && { opacity: 0.6 }]}
+              disabled={busy}
+              onPress={async () => {
+                setBusy(true);
+                try {
+                  const res = await api.rematchLobby(id as string);
+                  toast.show(
+                    res.reinvited > 0 ? `Rematch on! ${res.reinvited} player${res.reinvited > 1 ? "s" : ""} re-invited` : "Rematch lobby ready!",
+                    "success"
+                  );
+                  navigatedRef.current = false;
+                  router.replace(`/lobby/${res.id}`);
+                } catch (e: any) {
+                  toast.show(e?.message || "Couldn't create rematch", "error");
+                } finally {
+                  setBusy(false);
+                }
+              }}
+              testID="rematch-button"
+            >
+              {busy ? (
+                <ActivityIndicator color={colors.ink} />
+              ) : (
+                <>
+                  <Ionicons name="repeat" size={20} color={colors.ink} />
+                  <Text style={styles.rematchText}>Rematch</Text>
+                </>
+              )}
+            </Pressable>
             <Pressable style={styles.primaryBtn} onPress={() => router.replace("/(tabs)")} testID="standings-home">
               <Text style={styles.primaryText}>Back to Home</Text>
             </Pressable>
@@ -373,6 +403,8 @@ const styles = StyleSheet.create({
   createBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, backgroundColor: colors.gold, height: 56, borderRadius: radius.md, borderWidth: 3, borderColor: colors.ink },
   createBtnDisabled: { backgroundColor: colors.surfaceSecondary },
   createText: { color: colors.ink, fontFamily: fonts.cartoon, fontSize: 22, letterSpacing: 1 },
-  primaryBtn: { backgroundColor: colors.brandPrimary, height: 52, borderRadius: radius.md, alignItems: "center", justifyContent: "center", marginTop: spacing.lg, paddingHorizontal: spacing.xl },
+  rematchBtn: { flexDirection: "row", gap: spacing.sm, backgroundColor: colors.gold, height: 56, borderRadius: radius.md, borderWidth: 3, borderColor: colors.ink, alignItems: "center", justifyContent: "center", marginTop: spacing.lg, paddingHorizontal: spacing.xl },
+  rematchText: { color: colors.ink, fontFamily: fonts.cartoon, fontSize: 22, letterSpacing: 1 },
+  primaryBtn: { backgroundColor: colors.brandPrimary, height: 52, borderRadius: radius.md, borderWidth: 3, borderColor: colors.ink, alignItems: "center", justifyContent: "center", marginTop: spacing.md, paddingHorizontal: spacing.xl },
   primaryText: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg },
 });
