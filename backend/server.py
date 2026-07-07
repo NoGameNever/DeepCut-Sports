@@ -837,6 +837,11 @@ class LobbyScoreBody(BaseModel):
     total: int
 
 
+class LobbyProgressBody(BaseModel):
+    score: int
+    question_index: int
+
+
 # ---------- Friends API ----------
 @api_router.get("/users/search")
 async def search_users(q: str = "", authorization: Optional[str] = Header(None)):
@@ -1241,6 +1246,45 @@ async def lobby_game(lobby_id: str, authorization: Optional[str] = Header(None))
     if lobby["status"] not in ("active", "completed") or not lobby.get("questions"):
         raise HTTPException(status_code=409, detail="Game has not started")
     return {"questions": lobby["questions"], "settings": lobby.get("settings") or DEFAULT_SETTINGS}
+
+
+@api_router.post("/lobbies/{lobby_id}/progress")
+async def report_lobby_progress(lobby_id: str, body: LobbyProgressBody, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    lobby = await _require_member(lobby_id, me["user_id"])
+    if lobby["status"] != "active":
+        return {"ok": True}
+    await db.lobby_members.update_one(
+        {"lobby_id": lobby_id, "user_id": me["user_id"], "finished": {"$ne": True}},
+        {"$set": {"live_score": body.score, "live_question": body.question_index}},
+    )
+    return {"ok": True}
+
+
+@api_router.get("/lobbies/{lobby_id}/live")
+async def lobby_live_scores(lobby_id: str, authorization: Optional[str] = Header(None)):
+    me = await get_current_user(authorization)
+    lobby = await _require_member(lobby_id, me["user_id"])
+    members = await db.lobby_members.find({"lobby_id": lobby_id}, {"_id": 0}).to_list(10)
+    users_map = await _public_users_map([m["user_id"] for m in members])
+    players = []
+    for m in members:
+        pu = users_map.get(m["user_id"])
+        if not pu:
+            continue
+        finished = m.get("finished", False)
+        score = m.get("score") if finished else m.get("live_score", 0)
+        players.append({
+            "user_id": m["user_id"],
+            "name": pu["name"],
+            "picture": pu["picture"],
+            "score": score or 0,
+            "question_index": m.get("live_question", 0),
+            "finished": finished,
+        })
+    players.sort(key=lambda p: p["score"], reverse=True)
+    question_count = len(lobby.get("questions") or [])
+    return {"status": lobby["status"], "question_count": question_count, "players": players}
 
 
 @api_router.post("/lobbies/{lobby_id}/score")

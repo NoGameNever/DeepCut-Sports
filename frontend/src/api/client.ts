@@ -96,6 +96,10 @@ export const api = {
   leaveLobby: (id: string) => request(`/lobbies/${id}/leave`, { method: "POST" }),
   startLobby: (id: string) => request<any>(`/lobbies/${id}/start`, { method: "POST" }),
   lobbyGame: (id: string) => request<any>(`/lobbies/${id}/game`),
+  lobbyProgress: (id: string, payload: { score: number; question_index: number }) =>
+    request(`/lobbies/${id}/progress`, { method: "POST", body: payload }),
+  lobbyLive: (id: string) =>
+    request<{ status: string; question_count: number; players: any[] }>(`/lobbies/${id}/live`),
   submitLobbyScore: (id: string, payload: { score: number; correct: number; total: number }) =>
     request<any>(`/lobbies/${id}/score`, { method: "POST", body: payload }),
   myLobbyInvites: () => request<any[]>("/lobby-invites"),

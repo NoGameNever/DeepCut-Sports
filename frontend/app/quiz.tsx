@@ -8,6 +8,8 @@ import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withTiming } from "
 import { api } from "@/src/api/client";
 import { sportName, timerOption, eraOption } from "@/src/constants/sports";
 import { useToast } from "@/src/components/Toast";
+import { UserAvatar } from "@/src/components/UserAvatar";
+import { useAuth } from "@/src/context/AuthContext";
 import { colors, fonts, fontSize, radius, spacing, tints } from "@/src/theme/theme";
 
 const BASE_POINTS = 100;
@@ -21,6 +23,7 @@ export default function Quiz() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const toast = useToast();
+  const { user } = useAuth();
 
   const isLobby = !!lobbyId;
   const [lobbySettings, setLobbySettings] = useState<any>(null);
@@ -40,6 +43,7 @@ export default function Quiz() {
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
   const [secondsLeft, setSecondsLeft] = useState(perQuestionSeconds);
+  const [livePlayers, setLivePlayers] = useState<any[]>([]);
 
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const progress = useSharedValue(0);
@@ -64,6 +68,31 @@ export default function Quiz() {
   }, [sport, difficulty, era, lobbyId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // live standings polling (multiplayer only)
+  useEffect(() => {
+    if (!lobbyId || !questions) return;
+    let alive = true;
+    const fetchLive = () =>
+      api.lobbyLive(lobbyId).then((d) => { if (alive) setLivePlayers(d.players); }).catch(() => {});
+    fetchLive();
+    const iv = setInterval(fetchLive, 3000);
+    return () => { alive = false; clearInterval(iv); };
+  }, [lobbyId, questions]);
+
+  const reportProgress = useCallback(
+    (curScore: number, questionIndex: number) => {
+      if (!lobbyId) return;
+      api.lobbyProgress(lobbyId, { score: curScore, question_index: questionIndex }).catch(() => {});
+      // optimistic local update so my chip moves instantly
+      setLivePlayers((prev) => {
+        const next = prev.map((p) => (p.user_id === user?.user_id ? { ...p, score: curScore } : p));
+        next.sort((a, b) => b.score - a.score);
+        return next;
+      });
+    },
+    [lobbyId, user?.user_id]
+  );
 
   const finish = useCallback(
     (finalScore: number, finalCorrect: number, total: number) => {
@@ -138,9 +167,10 @@ export default function Quiz() {
       setCorrectCount(newCorrect);
       setStreak(newStreak);
       setSelected(index);
+      reportProgress(newScore, current + 1);
       setTimeout(() => advance(newScore, newCorrect), 1100);
     },
-    [locked, questions, current, score, correctCount, secondsLeft, advance, multiplier, streak, isLobby, lobbySettings, noTimer]
+    [locked, questions, current, score, correctCount, secondsLeft, advance, multiplier, streak, isLobby, lobbySettings, noTimer, reportProgress]
   );
 
   // timer
@@ -220,6 +250,37 @@ export default function Quiz() {
         </View>
       </View>
 
+      {isLobby && livePlayers.length > 0 && (
+        <View style={styles.liveBar} testID="quiz-live-bar">
+          {livePlayers.map((p, i) => {
+            const isMe = p.user_id === user?.user_id;
+            const isLeader = i === 0 && p.score > 0;
+            return (
+              <View
+                key={p.user_id}
+                style={[styles.livePlayer, isMe && styles.livePlayerMe]}
+                testID={`quiz-live-player-${i}`}
+              >
+                <View>
+                  <UserAvatar uri={p.picture} name={p.name} size={26} />
+                  {isLeader && (
+                    <Ionicons name="trophy" size={12} color={colors.gold} style={styles.liveCrown} />
+                  )}
+                </View>
+                <View>
+                  <Text style={[styles.liveName, isMe && { color: colors.brandPrimary }]} numberOfLines={1}>
+                    {isMe ? "You" : p.name}
+                  </Text>
+                  <Text style={[styles.liveScore, isLeader && { color: colors.gold }]}>
+                    {p.score}{p.finished ? " ✓" : ""}
+                  </Text>
+                </View>
+              </View>
+            );
+          })}
+        </View>
+      )}
+
       <View style={styles.timerWrap}>
         {noTimer ? (
           <View style={[styles.timerCircle, { borderColor: colors.brandSecondary }]}>
@@ -280,6 +341,29 @@ const styles = StyleSheet.create({
   qCounter: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: fontSize.base },
   scorePill: { flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: colors.surfaceSecondary, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.pill },
   scoreText: { color: colors.onSurface, fontFamily: fonts.displayBold, fontSize: fontSize.lg },
+  liveBar: {
+    flexDirection: "row",
+    gap: spacing.sm,
+    marginTop: spacing.md,
+    backgroundColor: colors.surfaceSecondary,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+  },
+  livePlayer: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+    paddingVertical: 4,
+    paddingHorizontal: spacing.sm,
+    borderRadius: radius.sm,
+    borderWidth: 1,
+    borderColor: "transparent",
+  },
+  livePlayerMe: { borderColor: colors.brandPrimary, backgroundColor: colors.surfaceTertiary },
+  liveCrown: { position: "absolute", top: -7, right: -4 },
+  liveName: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: 11, maxWidth: 64 },
+  liveScore: { color: colors.onSurface, fontFamily: fonts.displayBold, fontSize: fontSize.sm },
   timerWrap: { alignItems: "center", marginTop: spacing.xl },
   streakPill: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.sm, backgroundColor: colors.surfaceTertiary, paddingVertical: 4, paddingHorizontal: spacing.md, borderRadius: radius.pill },
   streakText: { color: colors.gold, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },  timerCircle: { width: 96, height: 96, borderRadius: 48, borderWidth: 4, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceSecondary },
