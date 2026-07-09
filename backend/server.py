@@ -1,10 +1,39 @@
 import os
+import sys
+import types
 from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException
 from starlette.middleware.cors import CORSMiddleware
 
-from server_legacy import *  # noqa: F401,F403
+# Keep the legacy app importable on hosts that do not install Emergent's private
+# integration package. Admin AI draft generation is disabled unless the real
+# package and EMERGENT_LLM_KEY are both configured.
+os.environ.setdefault("EMERGENT_LLM_KEY", "")
+_EMERGENT_LLM_AVAILABLE = True
+
+try:
+    from server_legacy import *  # noqa: F401,F403
+except ModuleNotFoundError as exc:
+    if exc.name != "emergentintegrations":
+        raise
+
+    _EMERGENT_LLM_AVAILABLE = False
+
+    chat_module = types.ModuleType("emergentintegrations.llm.chat")
+    chat_module.LlmChat = object
+    chat_module.UserMessage = object
+    sys.modules.setdefault("emergentintegrations", types.ModuleType("emergentintegrations"))
+    sys.modules.setdefault("emergentintegrations.llm", types.ModuleType("emergentintegrations.llm"))
+    sys.modules["emergentintegrations.llm.chat"] = chat_module
+
+    from server_legacy import *  # noqa: F401,F403
+
+if not _EMERGENT_LLM_AVAILABLE:
+    LlmChat = None
+    UserMessage = None
+    EMERGENT_LLM_KEY = None
+
 import question_bank
 
 
@@ -26,7 +55,14 @@ def _configure_cors() -> None:
     if app_base_url and app_base_url not in origins:
         origins.append(app_base_url)
     if not origins:
-        origins = ["*"]
+        # Production should set CORS_ORIGINS and/or APP_BASE_URL.
+        # Keep local development working without opening credentialed CORS to every origin.
+        origins = [
+            "http://localhost:3000",
+            "http://localhost:8081",
+            "http://127.0.0.1:3000",
+            "http://127.0.0.1:8081",
+        ]
 
     app.user_middleware = [m for m in app.user_middleware if m.cls is not CORSMiddleware]
     app.add_middleware(
@@ -121,6 +157,16 @@ question_bank.register_routes(
     logger=logger,
 )
 app.include_router(_admin_router)
+
+
+@app.get("/api/health")
+async def health_check():
+    try:
+        await db.command("ping")
+    except Exception as exc:
+        logger.error(f"Health check failed: {exc}")
+        raise HTTPException(status_code=503, detail="Database unavailable")
+    return {"status": "ok", "database": "ok"}
 
 
 @app.on_event("startup")
