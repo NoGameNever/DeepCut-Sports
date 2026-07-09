@@ -73,6 +73,7 @@ Do not include a trailing slash.
 Use these settings:
 
 - Root directory: `frontend`
+- Install command: `yarn install --no-lockfile`
 - Build command: `yarn build:web`
 - Output directory: `dist`
 - Environment variable: `EXPO_PUBLIC_BACKEND_URL=https://your-api-domain.com`
@@ -84,7 +85,7 @@ The included `frontend/vercel.json` adds SPA rewrites so Expo Router paths load 
 The included `render.yaml` uses:
 
 ```bash
-yarn install --frozen-lockfile && yarn build:web
+yarn install --no-lockfile && yarn build:web
 ```
 
 and publishes:
