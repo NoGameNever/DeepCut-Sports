@@ -1,6 +1,7 @@
 import { storage } from "@/src/utils/storage";
 
-const BASE = process.env.EXPO_PUBLIC_BACKEND_URL;
+const RAW_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || process.env.EXPO_PUBLIC_API_URL || "";
+const BASE = RAW_BASE.replace(/\/$/, "");
 const TOKEN_KEY = "stb_session_token";
 
 export const tokenStore = {
@@ -13,6 +14,7 @@ async function request<T>(
   path: string,
   options: { method?: string; body?: any; auth?: boolean } = {}
 ): Promise<T> {
+  if (!BASE) throw new Error("Missing EXPO_PUBLIC_BACKEND_URL or EXPO_PUBLIC_API_URL");
   const { method = "GET", body, auth = true } = options;
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (auth) {
