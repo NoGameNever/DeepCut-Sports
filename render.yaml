@@ -14,6 +14,8 @@ services:
         sync: false
       - key: APP_BASE_URL
         sync: false
+      - key: CORS_ORIGINS
+        sync: false
       - key: ADMIN_EMAILS
         sync: false
       - key: ADMIN_USER_IDS
