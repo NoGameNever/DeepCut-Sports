@@ -3,7 +3,7 @@
 This repo has two deployable pieces:
 
 - `backend/`: FastAPI API backed by MongoDB Atlas
-- `frontend/`: Expo web app that calls the API through `EXPO_PUBLIC_BACKEND_URL`
+- `frontend/`: Expo web app that calls the API through `EXPO_PUBLIC_BACKEND_URL` or `EXPO_PUBLIC_API_URL`
 
 ## 1. Production services you need
 
@@ -21,11 +21,14 @@ MONGO_URL=mongodb+srv://USER:PASSWORD@CLUSTER.mongodb.net/?retryWrites=true&w=ma
 DB_NAME=deepcut_sports
 EMERGENT_LLM_KEY=your-emergent-key
 APP_BASE_URL=https://your-web-domain.com
+CORS_ORIGINS=https://your-web-domain.com,http://localhost:3000
 ADMIN_EMAILS=you@example.com,teammate@example.com
 ADMIN_USER_IDS=
 ```
 
 `ADMIN_EMAILS` and `ADMIN_USER_IDS` control access to `/api/admin/*` question-bank routes.
+
+`CORS_ORIGINS` should include your deployed frontend URL. You can include localhost during testing, separated by commas.
 
 ## 3. Backend deploy
 
@@ -58,10 +61,16 @@ Health check path:
 
 ## 4. Frontend environment variable
 
-Set this on the frontend/static host before building:
+Set one of these on the frontend/static host before building:
 
 ```env
 EXPO_PUBLIC_BACKEND_URL=https://your-api-domain.com
+```
+
+or:
+
+```env
+EXPO_PUBLIC_API_URL=https://your-api-domain.com
 ```
 
 Do not include a trailing slash.
@@ -153,3 +162,4 @@ After deploy:
 4. Import at least 30 approved questions across your launch categories.
 5. Start a quick play match and confirm questions load.
 6. Create a lobby with another account and confirm both players receive the same question set.
+7. Confirm browser requests are not blocked by CORS. If they are, add the frontend URL to `CORS_ORIGINS` and redeploy the backend.
