@@ -1,11 +1,11 @@
 {
   "expo": {
     "name": "DeepCut Sports",
-    "slug": "frontend",
+    "slug": "deepcut-sports",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
+    "scheme": "deepcut-sports",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
@@ -13,7 +13,7 @@
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Choose a photo for your profile avatar"
       },
-      "bundleIdentifier": "app.emergent.scorethematcha2ec303e"
+      "bundleIdentifier": "com.nogamenever.deepcutsports"
     },
     "android": {
       "adaptiveIcon": {
@@ -24,7 +24,7 @@
       "permissions": [
         "READ_MEDIA_IMAGES"
       ],
-      "package": "com.emergent.scorethematch.wjxx4p"
+      "package": "com.nogamenever.deepcutsports"
     },
     "web": {
       "bundler": "metro",
