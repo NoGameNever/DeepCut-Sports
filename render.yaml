@@ -23,7 +23,7 @@ services:
     name: deepcut-sports-web
     runtime: static
     rootDir: frontend
-    buildCommand: yarn install --frozen-lockfile && yarn build:web
+    buildCommand: yarn install --no-lockfile && yarn build:web
     staticPublishPath: dist
     envVars:
       - key: EXPO_PUBLIC_BACKEND_URL
