@@ -6,6 +6,13 @@ import pytest
 import question_bank as qb
 
 
+@pytest.fixture(autouse=True)
+def clear_question_cache():
+    qb.clear_cache()
+    yield
+    qb.clear_cache()
+
+
 class FakeCursor:
     def __init__(self, docs):
         self.docs = list(docs)
