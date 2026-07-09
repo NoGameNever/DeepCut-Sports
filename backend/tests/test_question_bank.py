@@ -1,8 +1,11 @@
 import asyncio
+import sys
 from datetime import timedelta
+from pathlib import Path
 
 import pytest
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import question_bank as qb
 
 
