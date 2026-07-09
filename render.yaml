@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: deepcut-sports-api
+    name: deepcut-api
     runtime: docker
     rootDir: backend
     plan: starter
