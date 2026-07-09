@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: deepcut-sports-api
+    runtime: docker
+    rootDir: backend
+    plan: starter
+    healthCheckPath: /api/
+    envVars:
+      - key: MONGO_URL
+        sync: false
+      - key: DB_NAME
+        value: deepcut_sports
+      - key: EMERGENT_LLM_KEY
+        sync: false
+      - key: APP_BASE_URL
+        sync: false
+      - key: CORS_ORIGINS
+        sync: false
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: ADMIN_USER_IDS
+        sync: false
+
+  - type: web
+    name: deepcut-sports-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: yarn install --no-lockfile && yarn build:web
+    staticPublishPath: dist
+    envVars:
+      - key: EXPO_PUBLIC_BACKEND_URL
+        sync: false

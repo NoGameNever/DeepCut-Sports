@@ -1,6 +1,8 @@
+import os
 from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException
+from starlette.middleware.cors import CORSMiddleware
 
 from server_legacy import *  # noqa: F401,F403
 import question_bank
@@ -14,6 +16,30 @@ def _remove_route(path: str, method: str) -> None:
     ]
 
 
+def _env_list(name: str) -> list[str]:
+    return [value.strip().rstrip("/") for value in os.environ.get(name, "").split(",") if value.strip()]
+
+
+def _configure_cors() -> None:
+    origins = _env_list("CORS_ORIGINS")
+    app_base_url = os.environ.get("APP_BASE_URL", "").strip().rstrip("/")
+    if app_base_url and app_base_url not in origins:
+        origins.append(app_base_url)
+    if not origins:
+        origins = ["*"]
+
+    app.user_middleware = [m for m in app.user_middleware if m.cls is not CORSMiddleware]
+    app.add_middleware(
+        CORSMiddleware,
+        allow_credentials=True,
+        allow_origins=origins,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+    app.middleware_stack = None
+
+
+_configure_cors()
 _remove_route("/api/quiz/generate", "POST")
 _remove_route("/api/lobbies/{lobby_id}/start", "POST")
 
