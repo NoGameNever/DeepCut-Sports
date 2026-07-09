@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect } from "react";
-import { LogBox, View } from "react-native";
+import { View } from "react-native";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { StatusBar } from "expo-status-bar";
@@ -12,7 +12,6 @@ import { AuthProvider } from "@/src/context/AuthContext";
 import { ToastProvider } from "@/src/components/Toast";
 import { colors } from "@/src/theme/theme";
 
-LogBox.ignoreAllLogs(true);
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
@@ -20,9 +19,6 @@ export default function RootLayout() {
   const [fontsLoaded, fontsError] = useFonts({
     "BarlowCondensed-SemiBold": require("../assets/fonts/BarlowCondensed-SemiBold.ttf"),
     "BarlowCondensed-Bold": require("../assets/fonts/BarlowCondensed-Bold.ttf"),
-    "IBMPlexSans-Regular": require("../assets/fonts/IBMPlexSans-Regular.ttf"),
-    "IBMPlexSans-Medium": require("../assets/fonts/IBMPlexSans-Medium.ttf"),
-    "IBMPlexSans-SemiBold": require("../assets/fonts/IBMPlexSans-SemiBold.ttf"),
     "PermanentMarker-Regular": require("../assets/fonts/PermanentMarker-Regular.ttf"),
     "Bangers-Regular": require("../assets/fonts/Bangers-Regular.ttf"),
     "RubikSprayPaint-Regular": require("../assets/fonts/RubikSprayPaint-Regular.ttf"),
