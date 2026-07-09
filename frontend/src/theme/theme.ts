@@ -61,9 +61,9 @@ export const fonts = {
   poster: "RubikSprayPaint-Regular", // spray-paint tag headers / section titles
   display: "BarlowCondensed-SemiBold",
   displayBold: "BarlowCondensed-Bold", // numbers, scores, timers
-  body: "IBMPlexSans-Regular",
-  bodyMedium: "IBMPlexSans-Medium",
-  bodySemiBold: "IBMPlexSans-SemiBold",
+  body: "System",
+  bodyMedium: "System",
+  bodySemiBold: "System",
   cartoon: "Bangers-Regular", // chunky comic lettering for sticker-style menu buttons
 };
 
