@@ -18,7 +18,7 @@ _remove_route("/api/quiz/generate", "POST")
 _remove_route("/api/lobbies/{lobby_id}/start", "POST")
 
 
-@api_router.post("/quiz/generate", response_model=list[Question])
+@app.post("/api/quiz/generate", response_model=list[Question])
 async def generate_quiz(body: QuizRequest, authorization: Optional[str] = Header(None)):
     user = await get_current_user(authorization)
     sport_keys = [s for s in (body.sports or [body.sport]) if s]
@@ -38,7 +38,7 @@ async def generate_quiz(body: QuizRequest, authorization: Optional[str] = Header
     return await question_bank.fetch_approved_questions(db, query, user_id=user["user_id"])
 
 
-@api_router.post("/lobbies/{lobby_id}/start")
+@app.post("/api/lobbies/{lobby_id}/start")
 async def start_lobby(lobby_id: str, authorization: Optional[str] = Header(None)):
     me = await get_current_user(authorization)
     lobby = await _require_member(lobby_id, me["user_id"])
@@ -95,7 +95,6 @@ question_bank.register_routes(
     logger=logger,
 )
 app.include_router(_admin_router)
-app.include_router(api_router)
 
 
 @app.on_event("startup")
