@@ -10,6 +10,10 @@ services:
         sync: false
       - key: DB_NAME
         value: deepcut_sports
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5.6-luna
       - key: APP_BASE_URL
         sync: false
       - key: CORS_ORIGINS

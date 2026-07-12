@@ -45,6 +45,51 @@ CATEGORY_ALIASES = {
 _question_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
 
 
+GENERATED_QUESTION_BATCH_SCHEMA: dict[str, Any] = {
+    "type": "object",
+    "properties": {
+        "questions": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "items": {
+                "type": "object",
+                "properties": {
+                    "sport": {"type": "string"},
+                    "subcategory": {"type": "string"},
+                    "difficulty": {"type": "string"},
+                    "question": {"type": "string"},
+                    "correct_answer": {"type": "string"},
+                    "incorrect_answers": {
+                        "type": "array",
+                        "minItems": 3,
+                        "maxItems": 3,
+                        "items": {"type": "string"},
+                    },
+                    "explanation": {"type": "string"},
+                    "tags": {"type": "array", "items": {"type": "string"}},
+                    "source": {"type": "string"},
+                },
+                "required": [
+                    "sport",
+                    "subcategory",
+                    "difficulty",
+                    "question",
+                    "correct_answer",
+                    "incorrect_answers",
+                    "explanation",
+                    "tags",
+                    "source",
+                ],
+                "additionalProperties": False,
+            },
+        }
+    },
+    "required": ["questions"],
+    "additionalProperties": False,
+}
+
+
 class QuestionBankInput(BaseModel):
     id: Optional[str] = None
     sport: str = Field(..., min_length=1)
@@ -160,6 +205,34 @@ class DraftGenerationBody(BaseModel):
     subcategory: Optional[str] = None
     tags: list[str] = Field(default_factory=list)
     source: Optional[str] = None
+
+
+class GeneratedQuestion(BaseModel):
+    sport: str
+    subcategory: str
+    difficulty: str
+    question: str
+    correct_answer: str
+    incorrect_answers: list[str] = Field(..., min_length=3, max_length=3)
+    explanation: str
+    tags: list[str]
+    source: str
+
+
+class GeneratedQuestionBatch(BaseModel):
+    questions: list[GeneratedQuestion] = Field(..., min_length=1, max_length=50)
+
+
+class QuestionStatusBody(BaseModel):
+    status: str
+
+    @field_validator("status", mode="before")
+    @classmethod
+    def validate_status(cls, value):
+        normalized = str(value or "").strip().lower()
+        if normalized not in QUESTION_STATUSES:
+            raise ValueError("status must be draft, approved, rejected, or archived")
+        return normalized
 
 
 class QuestionBankQuery(BaseModel):
@@ -351,7 +424,7 @@ async def require_admin(user: dict[str, Any]) -> dict[str, Any]:
     raise HTTPException(status_code=403, detail="Admin access required")
 
 
-def register_routes(api_router, *, db, get_current_user: Callable, llm_chat_cls=None, user_message_cls=None, llm_key: Optional[str] = None, logger=None):
+def register_routes(api_router, *, db, get_current_user: Callable, openai_client=None, openai_model: str = "gpt-5.6-luna", logger=None):
     @api_router.post("/admin/questions/import")
     async def import_questions(body: ImportQuestionsBody, authorization: Optional[str] = Header(None)):
         user = await get_current_user(authorization)
@@ -370,30 +443,91 @@ def register_routes(api_router, *, db, get_current_user: Callable, llm_chat_cls=
     async def generate_draft_questions(body: DraftGenerationBody, authorization: Optional[str] = Header(None)):
         user = await get_current_user(authorization)
         await require_admin(user)
-        if not llm_chat_cls or not user_message_cls or not llm_key:
-            raise HTTPException(status_code=503, detail="AI draft generation is not configured")
+        if not openai_client:
+            raise HTTPException(status_code=503, detail="OpenAI draft generation is not configured")
+
+        sport = canonical_sport(body.sport)
+        difficulty = canonical_difficulty(body.difficulty)
+        if sport not in set(CATEGORY_ALIASES.values()):
+            raise HTTPException(status_code=400, detail="Unsupported sport/category")
+        if difficulty not in {"easy", "medium", "hard", "deepcut"}:
+            raise HTTPException(status_code=400, detail="Unsupported difficulty")
+
         count = max(1, min(body.count, 50))
-        prompt = (
-            f"Generate {count} sports trivia questions for {body.sport}, difficulty {body.difficulty}. "
-            "Return only JSON array items with sport, subcategory, difficulty, question, correct_answer, "
-            "incorrect_answers, explanation, tags, and source."
+        subcategory_instruction = (
+            f'Use the subcategory "{body.subcategory.strip()}".'
+            if body.subcategory and body.subcategory.strip()
+            else "Use a concise, specific subcategory for each question."
         )
-        chat = llm_chat_cls(api_key=llm_key, session_id=f"admin_drafts_{uuid.uuid4().hex}", system_message="Output only valid JSON.")
-        raw = await chat.with_model("gemini", "gemini-3-flash-preview").send_message(user_message_cls(text=prompt))
+        system_prompt = (
+            "You create draft content for DeepCut Sports, an obscure sports-trivia game. "
+            "Return only data matching the provided JSON schema. These questions will be manually reviewed. "
+            "Never invent a URL, quote, statistic, player, event, or source. If you are not confident in a fact, "
+            "use source=needs_manual_verification. Incorrect answers must be plausible, distinct, and definitely wrong."
+        )
+        user_prompt = (
+            f"Generate exactly {count} unique {difficulty} trivia questions for {sport}. "
+            f"{subcategory_instruction} Focus on backups, role players, forgotten games, unusual records, roster details, "
+            "sports-video-game history, or other facts that make a knowledgeable fan ask how someone remembers that. "
+            "Each question must have exactly three incorrect answers. Explanations should state why the answer is correct. "
+            "For source, give a concrete verification target such as a league gamebook, official record book, box score, "
+            "or named statistics page, but do not fabricate direct links."
+        )
+
         try:
-            rows = json.loads(raw[raw.find("["): raw.rfind("]") + 1])
+            response = await openai_client.responses.create(
+                model=openai_model,
+                input=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                text={
+                    "format": {
+                        "type": "json_schema",
+                        "name": "deepcut_question_batch",
+                        "strict": True,
+                        "schema": GENERATED_QUESTION_BATCH_SCHEMA,
+                    }
+                },
+            )
+            batch = GeneratedQuestionBatch.model_validate_json(response.output_text)
         except Exception as exc:
+            request_id = getattr(exc, "request_id", None)
             if logger:
-                logger.error(f"Draft question generation failed: {exc}")
-            raise HTTPException(status_code=502, detail="AI returned invalid draft data")
-        for row in rows:
-            row.setdefault("sport", body.sport)
-            row.setdefault("difficulty", body.difficulty)
-            row.setdefault("subcategory", body.subcategory or "general")
-            row.setdefault("tags", body.tags)
-            row.setdefault("source", body.source or "ai_draft")
+                logger.error(
+                    "OpenAI draft question generation failed%s: %s",
+                    f" request_id={request_id}" if request_id else "",
+                    exc,
+                )
+            raise HTTPException(status_code=502, detail="OpenAI returned invalid draft data")
+
+        rows: list[dict[str, Any]] = []
+        requested_tags = {str(tag).strip().lower() for tag in body.tags if str(tag).strip()}
+        for generated in batch.questions[:count]:
+            row = generated.model_dump()
+            row["sport"] = sport
+            row["difficulty"] = difficulty
+            if body.subcategory and body.subcategory.strip():
+                row["subcategory"] = body.subcategory.strip().lower()
+            row["tags"] = sorted(
+                {str(tag).strip().lower() for tag in row.get("tags", []) if str(tag).strip()}
+                | requested_tags
+                | {"ai_generated", "openai"}
+            )
+            row["source"] = (body.source or row.get("source") or "needs_manual_verification").strip()
             row["status"] = "draft"
-        return await import_question_docs(db, rows, default_status="draft")
+            rows.append(row)
+
+        result = await import_question_docs(db, rows, default_status="draft")
+        result.update(
+            {
+                "requested": count,
+                "generated": len(rows),
+                "provider": "openai",
+                "model": openai_model,
+            }
+        )
+        return result
 
     @api_router.get("/admin/questions")
     async def list_admin_questions(status: str = "draft", limit: int = 100, authorization: Optional[str] = Header(None)):
@@ -403,3 +537,21 @@ def register_routes(api_router, *, db, get_current_user: Callable, llm_chat_cls=
             raise HTTPException(status_code=400, detail="Invalid status")
         docs = await db.question_bank.find({"status": status}, {"_id": 0}).sort("updated_at", -1).limit(min(limit, 500)).to_list(min(limit, 500))
         return docs
+
+    @api_router.post("/admin/questions/{question_id}/status")
+    async def set_question_status(
+        question_id: str,
+        body: QuestionStatusBody,
+        authorization: Optional[str] = Header(None),
+    ):
+        user = await get_current_user(authorization)
+        await require_admin(user)
+        now = utcnow()
+        result = await db.question_bank.update_one(
+            {"id": question_id},
+            {"$set": {"status": body.status, "updated_at": now}},
+        )
+        if getattr(result, "matched_count", 0) == 0:
+            raise HTTPException(status_code=404, detail="Question not found")
+        clear_cache()
+        return {"id": question_id, "status": body.status}

@@ -10,7 +10,7 @@ This repo has two deployable pieces:
 - MongoDB Atlas cluster
 - A backend host such as Render, Railway, Fly.io, or AWS
 - A static web host such as Render Static Sites, Vercel, Netlify, Cloudflare Pages, or EAS Hosting
-- Your Emergent auth/LLM key if you want admin AI draft generation
+- An OpenAI API key if you want admin AI draft generation
 
 ## 2. Backend environment variables
 
@@ -19,7 +19,8 @@ Set these on your backend host, never commit real values:
 ```env
 MONGO_URL=mongodb+srv://USER:PASSWORD@CLUSTER.mongodb.net/?retryWrites=true&w=majority
 DB_NAME=deepcut_sports
-EMERGENT_LLM_KEY=your-emergent-key
+OPENAI_API_KEY=your-openai-api-key
+OPENAI_MODEL=gpt-5.6-luna
 APP_BASE_URL=https://your-web-domain.com
 CORS_ORIGINS=https://your-web-domain.com,http://localhost:3000
 ADMIN_EMAILS=you@example.com,teammate@example.com
@@ -27,6 +28,8 @@ ADMIN_USER_IDS=
 ```
 
 `ADMIN_EMAILS` and `ADMIN_USER_IDS` control access to `/api/admin/*` question-bank routes.
+
+`OPENAI_API_KEY` stays on the backend only. `OPENAI_MODEL` defaults to `gpt-5.6-luna`, which is suitable for cost-conscious batch generation.
 
 `CORS_ORIGINS` should include your deployed frontend URL. You can include localhost during testing, separated by commas.
 
@@ -152,7 +155,48 @@ Question statuses:
 - `rejected`: stored but hidden
 - `archived`: stored but hidden
 
-## 7. Smoke test checklist
+## 7. Generate question drafts with OpenAI
+
+The generator writes directly to the `question_bank` MongoDB collection with `status: draft`. It never publishes generated questions directly to gameplay.
+
+```text
+POST /api/admin/questions/generate-drafts
+Authorization: Bearer <admin_session_token>
+Content-Type: application/json
+```
+
+Example body:
+
+```json
+{
+  "sport": "basketball",
+  "difficulty": "deepcut",
+  "count": 10,
+  "subcategory": "bench legends",
+  "tags": ["nba", "playoffs"]
+}
+```
+
+List the drafts:
+
+```text
+GET /api/admin/questions?status=draft&limit=100
+Authorization: Bearer <admin_session_token>
+```
+
+Approve one after checking the answer and source:
+
+```text
+POST /api/admin/questions/<question_id>/status
+Authorization: Bearer <admin_session_token>
+Content-Type: application/json
+
+{ "status": "approved" }
+```
+
+Valid status values are `draft`, `approved`, `rejected`, and `archived`.
+
+## 8. Smoke test checklist
 
 After deploy:
 
