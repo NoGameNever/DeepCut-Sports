@@ -7,8 +7,7 @@ from fastapi import APIRouter, Header, HTTPException
 from starlette.middleware.cors import CORSMiddleware
 
 # Keep the legacy app importable on hosts that do not install Emergent's private
-# integration package. Admin AI draft generation is disabled unless the real
-# package and EMERGENT_LLM_KEY are both configured.
+# integration package. The newer question generator uses a standard HTTP API.
 os.environ.setdefault("EMERGENT_LLM_KEY", "")
 _EMERGENT_LLM_AVAILABLE = True
 
@@ -35,6 +34,7 @@ if not _EMERGENT_LLM_AVAILABLE:
     EMERGENT_LLM_KEY = None
 
 import question_bank
+import question_generator
 
 
 def _remove_route(path: str, method: str) -> None:
@@ -155,6 +155,13 @@ question_bank.register_routes(
     user_message_cls=UserMessage,
     llm_key=EMERGENT_LLM_KEY,
     logger=logger,
+)
+question_generator.register_routes(
+    _admin_router,
+    db=db,
+    get_current_user=get_current_user,
+    require_admin=question_bank.require_admin,
+    import_question_docs=question_bank.import_question_docs,
 )
 app.include_router(_admin_router)
 
