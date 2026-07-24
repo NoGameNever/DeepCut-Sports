@@ -4,6 +4,7 @@ import types
 from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException
+from openai import AsyncOpenAI
 from starlette.middleware.cors import CORSMiddleware
 
 # Keep the legacy app importable on hosts that do not install Emergent's private
@@ -35,6 +36,15 @@ if not _EMERGENT_LLM_AVAILABLE:
 
 import question_bank
 import question_generator
+
+
+OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
+OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.6-luna").strip() or "gpt-5.6-luna"
+openai_client = (
+    AsyncOpenAI(api_key=OPENAI_API_KEY, timeout=90.0, max_retries=2)
+    if OPENAI_API_KEY
+    else None
+)
 
 
 def _remove_route(path: str, method: str) -> None:
@@ -151,9 +161,8 @@ question_bank.register_routes(
     _admin_router,
     db=db,
     get_current_user=get_current_user,
-    llm_chat_cls=LlmChat,
-    user_message_cls=UserMessage,
-    llm_key=EMERGENT_LLM_KEY,
+    openai_client=openai_client,
+    openai_model=OPENAI_MODEL,
     logger=logger,
 )
 question_generator.register_routes(

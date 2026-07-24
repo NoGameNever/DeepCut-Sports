@@ -1,6 +1,7 @@
 fastapi==0.110.1
 uvicorn==0.25.0
 httpx>=0.27.0
+openai>=2.0.0,<3.0.0
 boto3>=1.34.129
 requests-oauthlib>=2.0.0
 cryptography>=42.0.8
@@ -17,5 +18,5 @@ python-jose>=3.3.0
 requests>=2.31.0
 python-multipart>=0.0.9
 typer>=0.9.0
-# Optional admin AI draft generation dependency is intentionally not listed here.
-# emergentintegrations is not available on public PyPI, and the app now boots without it.
+# OpenAI powers admin-only question draft generation.
+# The legacy Emergent integration remains optional and is not required to boot the app.
