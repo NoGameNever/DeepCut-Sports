@@ -8,7 +8,7 @@ from openai import AsyncOpenAI
 from starlette.middleware.cors import CORSMiddleware
 
 # Keep the legacy app importable on hosts that do not install Emergent's private
-# integration package. New admin AI draft generation uses the official OpenAI SDK.
+# integration package. The newer question generator uses a standard HTTP API.
 os.environ.setdefault("EMERGENT_LLM_KEY", "")
 _EMERGENT_LLM_AVAILABLE = True
 
@@ -35,6 +35,7 @@ if not _EMERGENT_LLM_AVAILABLE:
     EMERGENT_LLM_KEY = None
 
 import question_bank
+import question_generator
 
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
@@ -163,6 +164,13 @@ question_bank.register_routes(
     openai_client=openai_client,
     openai_model=OPENAI_MODEL,
     logger=logger,
+)
+question_generator.register_routes(
+    _admin_router,
+    db=db,
+    get_current_user=get_current_user,
+    require_admin=question_bank.require_admin,
+    import_question_docs=question_bank.import_question_docs,
 )
 app.include_router(_admin_router)
 
