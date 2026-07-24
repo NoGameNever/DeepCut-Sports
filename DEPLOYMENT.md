@@ -21,6 +21,7 @@ MONGO_URL=mongodb+srv://USER:PASSWORD@CLUSTER.mongodb.net/?retryWrites=true&w=ma
 DB_NAME=deepcut_sports
 OPENAI_API_KEY=your-openai-api-key
 OPENAI_MODEL=gpt-5.6-luna
+ADALO_API_KEY=generate-a-long-random-secret
 APP_BASE_URL=https://your-web-domain.com
 CORS_ORIGINS=https://your-web-domain.com,http://localhost:3000
 ADMIN_EMAILS=you@example.com,teammate@example.com
@@ -30,6 +31,8 @@ ADMIN_USER_IDS=
 `ADMIN_EMAILS` and `ADMIN_USER_IDS` control access to `/api/admin/*` question-bank routes.
 
 `OPENAI_API_KEY` stays on the backend only. `OPENAI_MODEL` defaults to `gpt-5.6-luna`, which is suitable for cost-conscious batch generation.
+
+`ADALO_API_KEY` is a separate secret accepted in the `X-API-Key` header only by the internal Adalo draft-generation action. Do not reuse the OpenAI key.
 
 `CORS_ORIGINS` should include your deployed frontend URL. You can include localhost during testing, separated by commas.
 
@@ -164,6 +167,8 @@ POST /api/admin/questions/generate-drafts
 Authorization: Bearer <admin_session_token>
 Content-Type: application/json
 ```
+
+An internal Adalo Custom Action can use `X-API-Key: <ADALO_API_KEY>` instead of the Bearer header. Do not expose this action in a public Adalo app: static client-side keys can be extracted. Use the authenticated admin-session flow for a public production interface.
 
 Example body:
 

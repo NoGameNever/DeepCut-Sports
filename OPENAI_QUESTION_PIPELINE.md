@@ -21,6 +21,7 @@ MONGO_URL=mongodb+srv://USER:PASSWORD@CLUSTER.mongodb.net/?retryWrites=true&w=ma
 DB_NAME=deepcut_sports
 OPENAI_API_KEY=your-openai-api-key
 OPENAI_MODEL=gpt-5.6-luna
+ADALO_API_KEY=generate-a-long-random-secret
 ADMIN_EMAILS=your-login-email@example.com
 ADMIN_USER_IDS=
 APP_BASE_URL=http://localhost:8081
@@ -49,7 +50,10 @@ http://localhost:8000/api/health
 
 ## Generate drafts
 
-Use a session token belonging to an email listed in `ADMIN_EMAILS`.
+Use either:
+
+- a session token belonging to an email listed in `ADMIN_EMAILS`, or
+- the dedicated `ADALO_API_KEY` in an `X-API-Key` header from an internal Adalo Custom Action.
 
 ```powershell
 $Backend = "http://localhost:8000"
@@ -70,6 +74,33 @@ Invoke-RestMethod `
     -ContentType "application/json" `
     -Body $Body
 ```
+
+For Adalo, configure a Custom Action with:
+
+```text
+Method: POST
+URL: https://YOUR-RENDER-DOMAIN/api/admin/questions/generate-drafts
+Header: Content-Type = application/json
+Header: X-API-Key = your ADALO_API_KEY value
+```
+
+Request body:
+
+```json
+{
+  "sport": "{sport input}",
+  "difficulty": "{difficulty input}",
+  "count": 10,
+  "subcategory": "{subcategory input}",
+  "tags": ["adalo"]
+}
+```
+
+Useful Adalo response outputs are `generated`, `imported`, `rejected_count`, `status`, `message`, and `model`.
+
+The Adalo key is accepted only by the draft-generation endpoint; imports, review listings, and status changes still require an authenticated admin session.
+
+Keep this action on an internal/admin-only screen. A static key embedded in a public client app can be extracted; a public production generator should use the existing authenticated admin-session flow instead.
 
 ## Review drafts
 

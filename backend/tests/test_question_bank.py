@@ -1,9 +1,12 @@
 import asyncio
+import json
 import sys
 from datetime import timedelta
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import question_bank as qb
@@ -76,6 +79,25 @@ class FakeDb:
     def __init__(self):
         self.question_bank = FakeCollection()
         self.question_serves = FakeCollection()
+
+
+class FakeRouter:
+    def __init__(self):
+        self.routes = {}
+
+    def post(self, path):
+        def decorator(handler):
+            self.routes[("POST", path)] = handler
+            return handler
+
+        return decorator
+
+    def get(self, path):
+        def decorator(handler):
+            self.routes[("GET", path)] = handler
+            return handler
+
+        return decorator
 
 
 def matches(doc, query):
@@ -178,3 +200,98 @@ def test_old_question_serves_do_not_block_reuse():
     result = asyncio.run(qb.fetch_approved_questions(db, query, user_id="user_1"))
 
     assert db.question_bank.docs[0]["id"] in {q["id"] for q in result}
+
+
+def test_adalo_api_key_authorizes_without_a_user_session(monkeypatch):
+    monkeypatch.setenv("ADALO_API_KEY", "adalo-test-key")
+
+    async def should_not_load_user(_authorization):
+        raise AssertionError("A valid Adalo key should not use session authentication")
+
+    principal = asyncio.run(
+        qb.authorize_generation_request(
+            should_not_load_user,
+            authorization=None,
+            x_api_key="adalo-test-key",
+        )
+    )
+
+    assert principal["user_id"] == "adalo_admin_api"
+
+
+def test_invalid_adalo_api_key_does_not_bypass_admin_auth(monkeypatch):
+    monkeypatch.setenv("ADALO_API_KEY", "adalo-test-key")
+
+    async def reject_user(_authorization):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            qb.authorize_generation_request(
+                reject_user,
+                authorization=None,
+                x_api_key="wrong-key",
+            )
+        )
+
+    assert exc_info.value.status_code == 401
+
+
+def test_adalo_generation_creates_drafts_and_disables_response_storage(monkeypatch):
+    monkeypatch.setenv("ADALO_API_KEY", "adalo-test-key")
+    db = FakeDb()
+    router = FakeRouter()
+    captured_request = {}
+
+    class FakeResponses:
+        async def create(self, **kwargs):
+            captured_request.update(kwargs)
+            return SimpleNamespace(
+                output_text=json.dumps(
+                    {
+                        "questions": [
+                            {
+                                "sport": "basketball",
+                                "subcategory": "bench legends",
+                                "difficulty": "deepcut",
+                                "question": "Which reserve made this fictional unit-test moment?",
+                                "correct_answer": "Correct Player",
+                                "incorrect_answers": ["Wrong One", "Wrong Two", "Wrong Three"],
+                                "explanation": "This is deterministic test data.",
+                                "tags": ["nba"],
+                                "source": "unit-test",
+                            }
+                        ]
+                    }
+                )
+            )
+
+    async def should_not_load_user(_authorization):
+        raise AssertionError("A valid Adalo key should not use session authentication")
+
+    qb.register_routes(
+        router,
+        db=db,
+        get_current_user=should_not_load_user,
+        openai_client=SimpleNamespace(responses=FakeResponses()),
+        openai_model="gpt-5.6-luna",
+    )
+    handler = router.routes[("POST", "/admin/questions/generate-drafts")]
+    result = asyncio.run(
+        handler(
+            body=qb.DraftGenerationBody(
+                sport="basketball",
+                difficulty="deepcut",
+                count=1,
+                subcategory="bench legends",
+            ),
+            authorization=None,
+            x_api_key="adalo-test-key",
+        )
+    )
+
+    assert captured_request["store"] is False
+    assert result["generated"] == 1
+    assert result["rejected_count"] == 0
+    assert result["status"] == "draft"
+    assert db.question_bank.docs[0]["status"] == "draft"

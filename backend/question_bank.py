@@ -1,8 +1,10 @@
 import csv
 import io
 import json
+import os
 import random
 import re
+import secrets
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -306,8 +308,16 @@ def build_filter(query: QuestionBankQuery, *, include_status: bool = True) -> di
 
 
 async def ensure_indexes(db) -> None:
-    await db.question_bank.create_index("id", unique=True)
-    await db.question_bank.create_index("normalized_hash", unique=True)
+    await db.question_bank.create_index(
+        "id",
+        unique=True,
+        partialFilterExpression={"id": {"$type": "string"}},
+    )
+    await db.question_bank.create_index(
+        "normalized_hash",
+        unique=True,
+        partialFilterExpression={"normalized_hash": {"$type": "string"}},
+    )
     await db.question_bank.create_index([("status", 1), ("sport", 1), ("difficulty", 1), ("subcategory", 1)])
     await db.question_bank.create_index([("status", 1), ("category", 1), ("difficulty", 1)])
     await db.question_serves.create_index([("user_id", 1), ("question_id", 1), ("served_at", -1)])
@@ -417,11 +427,26 @@ def admin_values(name: str) -> set[str]:
 
 
 async def require_admin(user: dict[str, Any]) -> dict[str, Any]:
-    emails = admin_values(__import__("os").environ.get("ADMIN_EMAILS", ""))
-    ids = admin_values(__import__("os").environ.get("ADMIN_USER_IDS", ""))
+    emails = admin_values(os.environ.get("ADMIN_EMAILS", ""))
+    ids = admin_values(os.environ.get("ADMIN_USER_IDS", ""))
     if user.get("email", "").lower() in emails or user.get("user_id", "").lower() in ids:
         return user
     raise HTTPException(status_code=403, detail="Admin access required")
+
+
+async def authorize_generation_request(
+    get_current_user: Callable,
+    authorization: Optional[str],
+    x_api_key: Optional[str],
+) -> dict[str, Any]:
+    """Authorize draft generation through an admin session or the Adalo key."""
+    configured_key = os.environ.get("ADALO_API_KEY", "").strip()
+    supplied_key = str(x_api_key or "").strip()
+    if configured_key and supplied_key and secrets.compare_digest(configured_key, supplied_key):
+        return {"user_id": "adalo_admin_api", "email": "adalo-admin-api@internal"}
+
+    user = await get_current_user(authorization)
+    return await require_admin(user)
 
 
 def register_routes(api_router, *, db, get_current_user: Callable, openai_client=None, openai_model: str = "gpt-5.6-luna", logger=None):
@@ -440,9 +465,12 @@ def register_routes(api_router, *, db, get_current_user: Callable, openai_client
         return await import_question_docs(db, rows, default_status=status)
 
     @api_router.post("/admin/questions/generate-drafts")
-    async def generate_draft_questions(body: DraftGenerationBody, authorization: Optional[str] = Header(None)):
-        user = await get_current_user(authorization)
-        await require_admin(user)
+    async def generate_draft_questions(
+        body: DraftGenerationBody,
+        authorization: Optional[str] = Header(None),
+        x_api_key: Optional[str] = Header(None, alias="X-API-Key"),
+    ):
+        await authorize_generation_request(get_current_user, authorization, x_api_key)
         if not openai_client:
             raise HTTPException(status_code=503, detail="OpenAI draft generation is not configured")
 
@@ -489,6 +517,7 @@ def register_routes(api_router, *, db, get_current_user: Callable, openai_client
                         "schema": GENERATED_QUESTION_BATCH_SCHEMA,
                     }
                 },
+                store=False,
             )
             batch = GeneratedQuestionBatch.model_validate_json(response.output_text)
         except Exception as exc:
@@ -523,8 +552,11 @@ def register_routes(api_router, *, db, get_current_user: Callable, openai_client
             {
                 "requested": count,
                 "generated": len(rows),
+                "rejected_count": len(result["rejected"]),
                 "provider": "openai",
                 "model": openai_model,
+                "status": "draft",
+                "message": f"Generated {len(rows)} draft questions for review",
             }
         )
         return result
