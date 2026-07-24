@@ -308,11 +308,7 @@ def build_filter(query: QuestionBankQuery, *, include_status: bool = True) -> di
 
 
 async def ensure_indexes(db) -> None:
-    await db.question_bank.create_index(
-        "id",
-        unique=True,
-        partialFilterExpression={"id": {"$type": "string"}},
-    )
+    await db.question_bank.create_index("id", unique=True)
     await db.question_bank.create_index(
         "normalized_hash",
         unique=True,
