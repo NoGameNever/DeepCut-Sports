@@ -309,11 +309,7 @@ def build_filter(query: QuestionBankQuery, *, include_status: bool = True) -> di
 
 async def ensure_indexes(db) -> None:
     await db.question_bank.create_index("id", unique=True)
-    await db.question_bank.create_index(
-        "normalized_hash",
-        unique=True,
-        partialFilterExpression={"normalized_hash": {"$type": "string"}},
-    )
+    await db.question_bank.create_index("normalized_hash", unique=True)
     await db.question_bank.create_index([("status", 1), ("sport", 1), ("difficulty", 1), ("subcategory", 1)])
     await db.question_bank.create_index([("status", 1), ("category", 1), ("difficulty", 1)])
     await db.question_serves.create_index([("user_id", 1), ("question_id", 1), ("served_at", -1)])
