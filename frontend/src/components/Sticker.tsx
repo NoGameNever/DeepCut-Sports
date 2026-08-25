@@ -1,12 +1,6 @@
-import { ReactNode } from "react";
-import {
-  AccessibilityRole,
-  Pressable,
-  StyleProp,
-  StyleSheet,
-  View,
-  ViewStyle,
-} from "react-native";
+import type { ReactNode } from "react";
+import { Pressable, StyleSheet, View } from "react-native";
+import type { AccessibilityRole, StyleProp, ViewStyle } from "react-native";
 
 import { colors } from "@/src/theme/theme";
 
