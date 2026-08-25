@@ -1,0 +1,100 @@
+[
+  {
+    "name": "Basketball Master Bank v1",
+    "sport": "basketball",
+    "slices": [
+      {"name":"role players and bench legends","count":180,"difficulty":"deepcut","subcategory":"role players","league":"NBA","tags":["nba","role_players"]},
+      {"name":"playoff moments","count":150,"difficulty":"hard","subcategory":"playoff moments","league":"NBA","tags":["nba","playoffs"]},
+      {"name":"transactions and roster moves","count":120,"difficulty":"hard","subcategory":"transactions","league":"NBA","tags":["nba","transactions"]},
+      {"name":"draft history","count":100,"difficulty":"medium","subcategory":"draft history","league":"NBA","tags":["nba","draft"]},
+      {"name":"coaches and front offices","count":90,"difficulty":"deepcut","subcategory":"coaches and front offices","league":"NBA","tags":["nba","coaches"]},
+      {"name":"records and stat oddities","count":130,"difficulty":"hard","subcategory":"records and stats","league":"NBA","tags":["nba","records"]},
+      {"name":"arenas jerseys and franchises","count":70,"difficulty":"medium","subcategory":"arenas and franchises","league":"NBA","tags":["nba","franchise_history"]},
+      {"name":"basketball video game culture","count":60,"difficulty":"easy","subcategory":"video game culture","league":"NBA","tags":["nba","sports_games"]}
+    ]
+  },
+  {
+    "name": "Football Master Bank v1",
+    "sport": "nfl",
+    "slices": [
+      {"name":"role players and forgotten starters","count":170,"difficulty":"deepcut","subcategory":"role players","league":"NFL","tags":["nfl","role_players"]},
+      {"name":"playoff and super bowl moments","count":150,"difficulty":"hard","subcategory":"playoff moments","league":"NFL","tags":["nfl","playoffs"]},
+      {"name":"special teams and defense","count":110,"difficulty":"deepcut","subcategory":"special teams and defense","league":"NFL","tags":["nfl","special_teams","defense"]},
+      {"name":"draft history","count":100,"difficulty":"medium","subcategory":"draft history","league":"NFL","tags":["nfl","draft"]},
+      {"name":"transactions and roster moves","count":90,"difficulty":"hard","subcategory":"transactions","league":"NFL","tags":["nfl","transactions"]},
+      {"name":"coaches coordinators and schemes","count":85,"difficulty":"hard","subcategory":"coaches and coordinators","league":"NFL","tags":["nfl","coaches"]},
+      {"name":"records and statistical oddities","count":85,"difficulty":"medium","subcategory":"records and stats","league":"NFL","tags":["nfl","records"]},
+      {"name":"madden and football game culture","count":60,"difficulty":"easy","subcategory":"video game culture","league":"NFL","tags":["nfl","madden","sports_games"]}
+    ]
+  },
+  {
+    "name": "Baseball Master Bank v1",
+    "sport": "baseball",
+    "slices": [
+      {"name":"postseason role players","count":140,"difficulty":"deepcut","subcategory":"postseason role players","league":"MLB","tags":["mlb","playoffs"]},
+      {"name":"world series moments","count":110,"difficulty":"hard","subcategory":"world series moments","league":"MLB","tags":["mlb","world_series"]},
+      {"name":"transactions and callups","count":90,"difficulty":"hard","subcategory":"transactions","league":"MLB","tags":["mlb","transactions"]},
+      {"name":"records and stat oddities","count":110,"difficulty":"hard","subcategory":"records and stats","league":"MLB","tags":["mlb","records"]},
+      {"name":"ballparks uniforms and franchises","count":75,"difficulty":"medium","subcategory":"ballparks and franchises","league":"MLB","tags":["mlb","franchise_history"]},
+      {"name":"awards and voting","count":70,"difficulty":"medium","subcategory":"awards","league":"MLB","tags":["mlb","awards"]},
+      {"name":"managers and front offices","count":60,"difficulty":"deepcut","subcategory":"managers and front offices","league":"MLB","tags":["mlb","managers"]},
+      {"name":"baseball video game culture","count":45,"difficulty":"easy","subcategory":"video game culture","league":"MLB","tags":["mlb","sports_games"]}
+    ]
+  },
+  {
+    "name": "Hockey Master Bank v1",
+    "sport": "hockey",
+    "slices": [
+      {"name":"playoff role players","count":130,"difficulty":"deepcut","subcategory":"playoff role players","league":"NHL","tags":["nhl","playoffs"]},
+      {"name":"stanley cup moments","count":100,"difficulty":"hard","subcategory":"stanley cup moments","league":"NHL","tags":["nhl","stanley_cup"]},
+      {"name":"goalies backups and tandems","count":85,"difficulty":"deepcut","subcategory":"goalies","league":"NHL","tags":["nhl","goalies"]},
+      {"name":"transactions and expansion","count":80,"difficulty":"hard","subcategory":"transactions and expansion","league":"NHL","tags":["nhl","transactions"]},
+      {"name":"draft history","count":70,"difficulty":"medium","subcategory":"draft history","league":"NHL","tags":["nhl","draft"]},
+      {"name":"coaches and front offices","count":65,"difficulty":"hard","subcategory":"coaches and front offices","league":"NHL","tags":["nhl","coaches"]},
+      {"name":"records franchises and arenas","count":75,"difficulty":"medium","subcategory":"records and franchises","league":"NHL","tags":["nhl","records"]},
+      {"name":"nhl video game culture","count":45,"difficulty":"easy","subcategory":"video game culture","league":"NHL","tags":["nhl","sports_games"]}
+    ]
+  },
+  {
+    "name": "Soccer Master Bank v1",
+    "sport": "soccer",
+    "slices": [
+      {"name":"world cup deep cuts","count":120,"difficulty":"deepcut","subcategory":"world cup deep cuts","league":"FIFA World Cup","tags":["soccer","world_cup"]},
+      {"name":"champions league moments","count":100,"difficulty":"hard","subcategory":"champions league moments","league":"UEFA Champions League","tags":["soccer","ucl"]},
+      {"name":"premier league role players","count":90,"difficulty":"deepcut","subcategory":"premier league role players","league":"Premier League","tags":["soccer","premier_league"]},
+      {"name":"transfers and loans","count":80,"difficulty":"hard","subcategory":"transfers","tags":["soccer","transfers"]},
+      {"name":"international tournaments","count":75,"difficulty":"hard","subcategory":"international tournaments","tags":["soccer","international"]},
+      {"name":"clubs managers and stadiums","count":75,"difficulty":"medium","subcategory":"clubs managers and stadiums","tags":["soccer","clubs"]},
+      {"name":"records and awards","count":65,"difficulty":"medium","subcategory":"records and awards","tags":["soccer","records"]},
+      {"name":"fifa and football game culture","count":45,"difficulty":"easy","subcategory":"video game culture","tags":["soccer","fifa","sports_games"]}
+    ]
+  },
+  {
+    "name": "Sports Video Games Master Bank v1",
+    "sport": "videogames",
+    "slices": [
+      {"name":"madden history","count":150,"difficulty":"hard","subcategory":"madden history","tags":["sports_games","madden"]},
+      {"name":"nba 2k and nba live","count":150,"difficulty":"hard","subcategory":"basketball games","tags":["sports_games","nba_2k","nba_live"]},
+      {"name":"fifa and ea sports fc","count":120,"difficulty":"hard","subcategory":"soccer games","tags":["sports_games","fifa"]},
+      {"name":"nhl game history","count":80,"difficulty":"medium","subcategory":"hockey games","tags":["sports_games","nhl"]},
+      {"name":"mlb games","count":70,"difficulty":"medium","subcategory":"baseball games","tags":["sports_games","mlb"]},
+      {"name":"2k and competitor franchises","count":80,"difficulty":"deepcut","subcategory":"competitor franchises","tags":["sports_games","2k"]},
+      {"name":"cover athletes","count":60,"difficulty":"easy","subcategory":"cover athletes","tags":["sports_games","cover_athletes"]},
+      {"name":"retro and forgotten sports games","count":40,"difficulty":"deepcut","subcategory":"retro sports games","tags":["sports_games","retro"]}
+    ]
+  },
+  {
+    "name": "Golf Master Bank v1",
+    "sport": "golf",
+    "slices": [
+      {"name":"major championship deep cuts","count":110,"difficulty":"deepcut","subcategory":"major championship deep cuts","tags":["golf","majors"]},
+      {"name":"ryder cup","count":75,"difficulty":"hard","subcategory":"ryder cup","league":"Ryder Cup","tags":["golf","ryder_cup"]},
+      {"name":"masters history","count":70,"difficulty":"hard","subcategory":"masters history","league":"Masters Tournament","tags":["golf","masters"]},
+      {"name":"open championship history","count":65,"difficulty":"hard","subcategory":"open championship history","league":"The Open Championship","tags":["golf","the_open"]},
+      {"name":"us open and pga championship","count":65,"difficulty":"medium","subcategory":"us open and pga championship","tags":["golf","majors"]},
+      {"name":"courses venues and oddities","count":45,"difficulty":"medium","subcategory":"courses and venues","tags":["golf","courses"]},
+      {"name":"equipment rules and records","count":40,"difficulty":"deepcut","subcategory":"equipment rules and records","tags":["golf","records"]},
+      {"name":"golf video game culture","count":30,"difficulty":"easy","subcategory":"video game culture","tags":["golf","sports_games"]}
+    ]
+  }
+]
