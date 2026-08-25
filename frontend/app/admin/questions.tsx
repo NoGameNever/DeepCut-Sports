@@ -19,6 +19,7 @@ import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 const STATUSES = ["draft", "flagged", "approved", "rejected", "archived"];
 const SPORTS = ["basketball", "nfl", "baseball", "hockey", "soccer", "golf", "videogames"];
 const DIFFICULTIES = ["easy", "medium", "hard", "deepcut"];
+const BULK_ACCEPT_CONCURRENCY = 5;
 
 function pct(question: AdminQuestion) {
   if (!question.answer_count) return "—";
@@ -46,6 +47,7 @@ export default function QuestionBankAdmin() {
   const [workingId, setWorkingId] = useState<string | null>(null);
   const [forbidden, setForbidden] = useState(false);
   const [editing, setEditing] = useState<AdminQuestion | null>(null);
+  const [confirmAcceptAll, setConfirmAcceptAll] = useState(false);
   const [editQuestion, setEditQuestion] = useState("");
   const [editAnswer, setEditAnswer] = useState("");
   const [editSource, setEditSource] = useState("");
@@ -136,6 +138,54 @@ export default function QuestionBankAdmin() {
     }
   };
 
+  const acceptAllLoaded = async () => {
+    const candidates = questions.filter((question) => question.status !== "approved");
+    if (!candidates.length) {
+      setConfirmAcceptAll(false);
+      toast.show("No loaded questions to accept", "info");
+      return;
+    }
+
+    setConfirmAcceptAll(false);
+    setWorkingId("accept-all");
+    let approved = 0;
+    const failures: string[] = [];
+
+    try {
+      for (let index = 0; index < candidates.length; index += BULK_ACCEPT_CONCURRENCY) {
+        const batch = candidates.slice(index, index + BULK_ACCEPT_CONCURRENCY);
+        const results = await Promise.allSettled(
+          batch.map((question) =>
+            api.reviewAdminQuestion(question.id, {
+              status: "approved",
+              verification_status: "verified",
+              review_note: "Bulk accepted from the admin review queue after confirmation.",
+            })
+          )
+        );
+
+        results.forEach((result, resultIndex) => {
+          if (result.status === "fulfilled") approved += 1;
+          else {
+            const reason = (result.reason as any)?.detail || "Approval failed";
+            failures.push(`${batch[resultIndex].id}: ${reason}`);
+          }
+        });
+      }
+
+      if (failures.length) {
+        toast.show(`Approved ${approved}; ${failures.length} skipped`, approved ? "info" : "error");
+      } else {
+        toast.show(`Accepted all ${approved} loaded questions`, "success");
+      }
+      await Promise.all([loadSummary(), loadQuestions()]);
+    } catch (e: any) {
+      toast.show(e?.detail || "Accept all failed", "error");
+    } finally {
+      setWorkingId(null);
+    }
+  };
+
   const markVerified = async (question: AdminQuestion) => {
     setWorkingId(question.id);
     try {
@@ -207,6 +257,7 @@ export default function QuestionBankAdmin() {
     () => (summary?.statuses.approved || 0) + (summary?.statuses.rejected || 0) + (summary?.statuses.archived || 0),
     [summary]
   );
+  const bulkBusy = workingId === "accept-all";
 
   if (loading) {
     return (
@@ -269,14 +320,27 @@ export default function QuestionBankAdmin() {
               {STATUSES.map((item) => <Pill key={item} label={`${item} ${summary?.statuses[item] || 0}`} active={status === item} onPress={() => setStatus(item)} />)}
             </ScrollView>
 
-            <Pressable style={styles.secondaryBtn} onPress={backfill} disabled={workingId === "backfill"}>
-              {workingId === "backfill" ? <ActivityIndicator color={colors.onSurface} /> : <Ionicons name="construct-outline" size={18} color={colors.onSurface} />}
-              <Text style={styles.secondaryText}>Normalize legacy metadata</Text>
-            </Pressable>
+            <View style={styles.bulkActionRow}>
+              {status === "draft" && questions.length > 0 && (
+                <Pressable
+                  testID="accept-all-review-questions"
+                  style={[styles.primaryBtn, styles.bulkActionBtn, styles.acceptAllBtn]}
+                  onPress={() => setConfirmAcceptAll(true)}
+                  disabled={bulkBusy}
+                >
+                  {bulkBusy ? <ActivityIndicator color={colors.ink} /> : <Ionicons name="checkmark-done-circle" size={19} color={colors.ink} />}
+                  <Text style={styles.acceptAllText}>Accept All {questions.length}</Text>
+                </Pressable>
+              )}
+              <Pressable style={[styles.secondaryBtn, styles.bulkActionBtn]} onPress={backfill} disabled={workingId === "backfill" || bulkBusy}>
+                {workingId === "backfill" ? <ActivityIndicator color={colors.onSurface} /> : <Ionicons name="construct-outline" size={18} color={colors.onSurface} />}
+                <Text style={styles.secondaryText}>Normalize legacy metadata</Text>
+              </Pressable>
+            </View>
 
             {questions.length === 0 ? <Text style={styles.empty}>No questions in this queue.</Text> : null}
             {questions.map((question) => {
-              const busy = workingId === question.id;
+              const busy = bulkBusy || workingId === question.id;
               return (
                 <View key={question.id} style={styles.questionCard}>
                   <View style={styles.metaRow}>
@@ -354,6 +418,26 @@ export default function QuestionBankAdmin() {
         )}
       </ScrollView>
 
+      {confirmAcceptAll && (
+        <View style={styles.editOverlay}>
+          <View style={styles.confirmCard}>
+            <Ionicons name="checkmark-done-circle" size={44} color={colors.success} />
+            <Text style={styles.sectionTitle}>ACCEPT ALL {questions.length}?</Text>
+            <Text style={styles.confirmText}>
+              This approves every question currently loaded in the draft review queue and marks each one verified. Confirm only after checking the facts, answer choices, and listed sources.
+            </Text>
+            <View style={styles.confirmActions}>
+              <Pressable style={[styles.secondaryBtn, styles.confirmBtn]} onPress={() => setConfirmAcceptAll(false)}>
+                <Text style={styles.secondaryText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={[styles.primaryBtn, styles.acceptAllBtn, styles.confirmBtn]} onPress={() => void acceptAllLoaded()}>
+                <Text style={styles.acceptAllText}>Yes, Accept All</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
+
       {editing && (
         <View style={styles.editOverlay}>
           <ScrollView style={styles.editCard} contentContainerStyle={{ gap: spacing.md }}>
@@ -405,6 +489,8 @@ const styles = StyleSheet.create({
   pillActive: { backgroundColor: colors.brandPrimary, borderColor: colors.ink },
   pillText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold, fontSize: 10 },
   pillTextActive: { color: colors.onBrandPrimary },
+  bulkActionRow: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  bulkActionBtn: { flexGrow: 1, minWidth: 220 },
   questionCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 2, borderColor: colors.ink, padding: spacing.lg, gap: spacing.sm },
   metaRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: spacing.md },
   meta: { color: colors.onSurfaceTertiary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },
@@ -423,6 +509,8 @@ const styles = StyleSheet.create({
   rejectText: { color: colors.onError, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },
   primaryBtn: { minHeight: 48, borderRadius: radius.md, backgroundColor: colors.brandPrimary, borderWidth: 2, borderColor: colors.ink, flexDirection: "row", gap: spacing.sm, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
   primaryText: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.base },
+  acceptAllBtn: { backgroundColor: colors.success },
+  acceptAllText: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: fontSize.base },
   secondaryBtn: { minHeight: 44, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary, flexDirection: "row", gap: spacing.sm, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
   secondaryText: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },
   empty: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: fontSize.base, textAlign: "center", paddingVertical: spacing.xl },
@@ -437,4 +525,8 @@ const styles = StyleSheet.create({
   progressFill: { height: "100%", backgroundColor: colors.brandPrimary },
   editOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.72)", padding: spacing.lg, justifyContent: "center" },
   editCard: { maxHeight: "88%", backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, borderWidth: 3, borderColor: colors.ink, padding: spacing.lg },
+  confirmCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, borderWidth: 3, borderColor: colors.ink, padding: spacing.xl, alignItems: "center", gap: spacing.md },
+  confirmText: { color: colors.onSurfaceSecondary, fontFamily: fonts.body, fontSize: fontSize.base, lineHeight: 22, textAlign: "center" },
+  confirmActions: { width: "100%", flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.sm },
+  confirmBtn: { flexGrow: 1, minWidth: 150 },
 });
