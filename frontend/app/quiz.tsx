@@ -315,7 +315,7 @@ export default function Quiz() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-  }, [current, activeQuestion, locked, totalQuestions, noTimer, handleAnswer, progress]);
+  }, [current, activeQuestion, locked, totalQuestions, noTimer, handleAnswer]);
 
   const progressStyle = useAnimatedStyle(() => ({ width: `${progress.value * 100}%` }));
 
