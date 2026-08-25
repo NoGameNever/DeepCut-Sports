@@ -1,6 +1,15 @@
 import { useEffect, useState } from "react";
 import {
-  View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, Platform, Linking, KeyboardAvoidingView,
+  ActivityIndicator,
+  KeyboardAvoidingView,
+  Linking,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
 } from "react-native";
 import { Image } from "expo-image";
 import { useRouter, Stack } from "expo-router";
@@ -9,7 +18,13 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import * as ImageManipulator from "expo-image-manipulator";
 import * as Haptics from "expo-haptics";
+
 import { api } from "@/src/api/client";
+import {
+  StickerButton,
+  StickerChip,
+  StickerIconButton,
+} from "@/src/components/StickerControls";
 import { useAuth } from "@/src/context/AuthContext";
 import { useToast } from "@/src/components/Toast";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
@@ -127,11 +142,15 @@ export default function EditProfile() {
     <View style={styles.container} testID="edit-profile-screen">
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn} testID="edit-cancel-button">
-          <Ionicons name="close" size={22} color={colors.onSurface} />
-        </Pressable>
+        <StickerIconButton
+          icon="close"
+          tone="dark"
+          onPress={() => router.back()}
+          testID="edit-cancel-button"
+          accessibilityLabel="Close profile editor"
+        />
         <Text style={styles.headerTitle}>EDIT PROFILE</Text>
-        <View style={{ width: 40 }} />
+        <View style={{ width: 46 }} />
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -141,7 +160,7 @@ export default function EditProfile() {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.avatarWrap}>
-            <Pressable onPress={pickImage} testID="avatar-picker">
+            <Pressable onPress={() => void pickImage()} testID="avatar-picker">
               {avatarPreview ? (
                 <Image source={{ uri: avatarPreview }} style={styles.avatar} />
               ) : (
@@ -150,15 +169,19 @@ export default function EditProfile() {
                 </View>
               )}
               <View style={styles.avatarBadge}>
-                <Ionicons name="camera" size={16} color={colors.onBrandPrimary} />
+                <Ionicons name="camera" size={16} color={colors.ink} />
               </View>
             </Pressable>
             <Text style={styles.avatarHint}>Tap to change photo</Text>
             {permBlocked && (
-              <Pressable style={styles.settingsBtn} onPress={() => Linking.openSettings()} testID="open-settings-button">
-                <Ionicons name="settings-outline" size={16} color={colors.onSurface} />
-                <Text style={styles.settingsText}>Enable photo access in Settings</Text>
-              </Pressable>
+              <StickerButton
+                label="Enable Photo Access"
+                icon="settings-outline"
+                tone="dark"
+                size="sm"
+                onPress={() => void Linking.openSettings()}
+                testID="open-settings-button"
+              />
             )}
           </View>
 
@@ -192,10 +215,15 @@ export default function EditProfile() {
             <Text style={styles.counter}>{tagline.length}/{TAGLINE_MAX}</Text>
           </View>
           <View style={styles.chips}>
-            {TAGLINE_SUGGESTIONS.map((s) => (
-              <Pressable key={s} style={styles.chip} onPress={() => setTagline(s)} testID={`tagline-chip-${s}`}>
-                <Text style={styles.chipText}>{s}</Text>
-              </Pressable>
+            {TAGLINE_SUGGESTIONS.map((suggestion, index) => (
+              <StickerChip
+                key={suggestion}
+                label={suggestion}
+                selected={tagline === suggestion}
+                tone={index % 2 === 0 ? "brand" : "cyan"}
+                onPress={() => setTagline(suggestion)}
+                testID={`tagline-chip-${suggestion}`}
+              />
             ))}
           </View>
 
@@ -206,12 +234,27 @@ export default function EditProfile() {
             </View>
           )}
 
-          <Pressable testID="save-profile-button" style={styles.saveBtn} onPress={save} disabled={saving}>
-            {saving ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Text style={styles.saveText}>Save Changes</Text>}
-          </Pressable>
-          <Pressable testID="cancel-profile-button" style={styles.cancelBtn} onPress={() => router.back()} disabled={saving}>
-            <Text style={styles.cancelText}>Cancel</Text>
-          </Pressable>
+          <View style={styles.actionStack}>
+            <StickerButton
+              label="Save Changes"
+              icon="save"
+              tone="brand"
+              size="lg"
+              fullWidth
+              loading={saving}
+              onPress={() => void save()}
+              testID="save-profile-button"
+            />
+            <StickerButton
+              label="Cancel"
+              icon="close"
+              tone="dark"
+              fullWidth
+              disabled={saving}
+              onPress={() => router.back()}
+              testID="cancel-profile-button"
+            />
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </View>
@@ -221,30 +264,22 @@ export default function EditProfile() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   centered: { flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingBottom: spacing.md, backgroundColor: colors.surfaceSecondary, borderBottomWidth: 1, borderBottomColor: colors.divider },
-  backBtn: { width: 40, height: 40, borderRadius: radius.md, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceTertiary },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingBottom: spacing.md, backgroundColor: colors.surfaceSecondary, borderBottomWidth: 3, borderBottomColor: colors.ink },
   headerTitle: { color: colors.onSurface, fontFamily: fonts.poster, fontSize: 26, letterSpacing: 0.5 },
-  avatarWrap: { alignItems: "center", marginVertical: spacing.lg },
+  avatarWrap: { alignItems: "center", marginVertical: spacing.lg, gap: spacing.sm },
   avatar: { width: 110, height: 110, borderRadius: 55, backgroundColor: colors.surfaceTertiary, borderWidth: 3, borderColor: colors.brandPrimary },
   avatarFallback: { alignItems: "center", justifyContent: "center" },
   avatarText: { color: colors.brandPrimary, fontFamily: fonts.displayBold, fontSize: 44 },
-  avatarBadge: { position: "absolute", bottom: 0, right: 0, width: 34, height: 34, borderRadius: 17, backgroundColor: colors.brandPrimary, alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: colors.surface },
-  avatarHint: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: fontSize.sm, marginTop: spacing.sm },
-  settingsBtn: { flexDirection: "row", alignItems: "center", gap: spacing.xs, marginTop: spacing.md, backgroundColor: colors.surfaceTertiary, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.sm },
-  settingsText: { color: colors.onSurface, fontFamily: fonts.bodyMedium, fontSize: fontSize.sm },
+  avatarBadge: { position: "absolute", bottom: 0, right: 0, width: 34, height: 34, borderRadius: 17, backgroundColor: colors.gold, alignItems: "center", justifyContent: "center", borderWidth: 3, borderColor: colors.ink },
+  avatarHint: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: fontSize.sm },
   label: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm, letterSpacing: 1, marginBottom: spacing.sm },
-  inputWrap: { flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, height: 52 },
+  inputWrap: { flexDirection: "row", alignItems: "center", gap: spacing.xs, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 2, borderColor: colors.ink, paddingHorizontal: spacing.md, height: 52 },
   at: { color: colors.onSurfaceTertiary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg },
   input: { flex: 1, color: colors.onSurface, fontFamily: fonts.bodyMedium, fontSize: fontSize.lg },
   counter: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: fontSize.sm },
   helper: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: fontSize.sm, marginTop: spacing.xs },
   chips: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm, marginTop: spacing.md },
-  chip: { backgroundColor: colors.surfaceTertiary, paddingVertical: spacing.sm, paddingHorizontal: spacing.md, borderRadius: radius.pill },
-  chipText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: fontSize.sm },
-  errorBox: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "rgba(255,59,48,0.12)", borderRadius: radius.md, padding: spacing.md, marginTop: spacing.lg },
+  errorBox: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "rgba(239,71,111,0.16)", borderRadius: radius.md, borderWidth: 2, borderColor: colors.error, padding: spacing.md, marginTop: spacing.lg },
   errorText: { flex: 1, color: colors.error, fontFamily: fonts.bodyMedium, fontSize: fontSize.base },
-  saveBtn: { backgroundColor: colors.brandPrimary, height: 56, borderRadius: radius.md, alignItems: "center", justifyContent: "center", marginTop: spacing.xl },
-  saveText: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg },
-  cancelBtn: { height: 48, alignItems: "center", justifyContent: "center", marginTop: spacing.sm },
-  cancelText: { color: colors.onSurfaceTertiary, fontFamily: fonts.bodyMedium, fontSize: fontSize.base },
+  actionStack: { gap: spacing.md, marginTop: spacing.xl },
 });
