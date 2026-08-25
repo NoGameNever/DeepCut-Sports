@@ -33,6 +33,11 @@ export type QuizAnswerResponse = {
   user?: any;
 };
 
+export type AuthResponse = {
+  session_token: string;
+  user: any;
+};
+
 export const tokenStore = {
   get: () => storage.secureGet(TOKEN_KEY, ""),
   set: (t: string) => storage.secureSet(TOKEN_KEY, t),
@@ -67,8 +72,18 @@ async function request<T>(
 }
 
 export const api = {
+  // First-party DeepCut credentials. The returned bearer token uses the same
+  // user_sessions collection as the rest of the existing API.
+  register: (payload: { email: string; password: string; username?: string }) =>
+    request<AuthResponse>("/auth/register", { method: "POST", body: payload, auth: false }),
+  login: (payload: { email: string; password: string }) =>
+    request<AuthResponse>("/auth/login", { method: "POST", body: payload, auth: false }),
+  setPassword: (password: string) =>
+    request<{ ok: boolean }>("/auth/set-password", { method: "POST", body: { password } }),
+
+  // Temporary legacy migration bridge. Do not use this for new sign-ins.
   createSession: (session_token: string) =>
-    request<{ session_token: string; user: any }>("/auth/session", {
+    request<AuthResponse>("/auth/session", {
       method: "POST",
       body: { session_token },
       auth: false,
@@ -76,8 +91,7 @@ export const api = {
   me: () => request<any>("/auth/me"),
   logout: () => request("/auth/logout", { method: "POST" }),
 
-  // Legacy single-player endpoints. Keep these during the migration so the
-  // current UI remains usable until quiz.tsx is switched to the v2 session flow.
+  // Legacy single-player endpoints retained during migration.
   generateQuiz: (payload: { sports: string[]; difficulty: string; era?: string; count?: number }) =>
     request<any[]>("/quiz/generate", {
       method: "POST",
@@ -98,8 +112,7 @@ export const api = {
     answers?: any[];
   }) => request<any>("/quiz/submit", { method: "POST", body: payload }),
 
-  // Server-authoritative single-player flow. These endpoints deliberately do
-  // not expose the correct answer until after an answer has been submitted.
+  // Server-authoritative single-player flow.
   startQuizSession: (payload: { sports: string[]; difficulty: string; era?: string; count?: number }) =>
     request<QuizStartResponse>("/v2/quiz/start", {
       method: "POST",
