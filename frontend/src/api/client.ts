@@ -4,6 +4,35 @@ const RAW_BASE = process.env.EXPO_PUBLIC_BACKEND_URL || process.env.EXPO_PUBLIC_
 const BASE = RAW_BASE.replace(/\/$/, "");
 const TOKEN_KEY = "stb_session_token";
 
+export type PublicQuizQuestion = {
+  id: string;
+  question: string;
+  options: string[];
+  difficulty?: string;
+  tags?: string[];
+  deep_cut?: boolean;
+};
+
+export type QuizStartResponse = {
+  session_id: string;
+  total: number;
+  question_index: number;
+  question: PublicQuizQuestion;
+};
+
+export type QuizAnswerResponse = {
+  correct: boolean;
+  correct_index: number;
+  score: number;
+  correct_count: number;
+  question_index: number;
+  total: number;
+  complete: boolean;
+  next_question?: PublicQuizQuestion | null;
+  progression?: any;
+  user?: any;
+};
+
 export const tokenStore = {
   get: () => storage.secureGet(TOKEN_KEY, ""),
   set: (t: string) => storage.secureSet(TOKEN_KEY, t),
@@ -46,6 +75,9 @@ export const api = {
     }),
   me: () => request<any>("/auth/me"),
   logout: () => request("/auth/logout", { method: "POST" }),
+
+  // Legacy single-player endpoints. Keep these during the migration so the
+  // current UI remains usable until quiz.tsx is switched to the v2 session flow.
   generateQuiz: (payload: { sports: string[]; difficulty: string; era?: string; count?: number }) =>
     request<any[]>("/quiz/generate", {
       method: "POST",
@@ -65,6 +97,26 @@ export const api = {
     total: number;
     answers?: any[];
   }) => request<any>("/quiz/submit", { method: "POST", body: payload }),
+
+  // Server-authoritative single-player flow. These endpoints deliberately do
+  // not expose the correct answer until after an answer has been submitted.
+  startQuizSession: (payload: { sports: string[]; difficulty: string; era?: string; count?: number }) =>
+    request<QuizStartResponse>("/v2/quiz/start", {
+      method: "POST",
+      body: {
+        sport: payload.sports[0],
+        sports: payload.sports,
+        difficulty: payload.difficulty,
+        era: payload.era ?? "modern",
+        count: payload.count ?? 7,
+      },
+    }),
+  answerQuizSession: (sessionId: string, selectedIndex: number | null) =>
+    request<QuizAnswerResponse>(`/v2/quiz/${encodeURIComponent(sessionId)}/answer`, {
+      method: "POST",
+      body: { selected_index: selectedIndex },
+    }),
+
   leaderboard: (board = "global_alltime") => request<any>(`/leaderboard?board=${board}`),
   progression: () => request<any>("/progression"),
 
