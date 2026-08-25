@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   Pressable,
@@ -18,6 +17,8 @@ import { Ionicons } from "@expo/vector-icons";
 
 import { betaApi } from "@/src/api/beta";
 import { tokenStore } from "@/src/api/client";
+import { Sticker } from "@/src/components/Sticker";
+import { StickerButton, StickerChip } from "@/src/components/StickerControls";
 import { BETA_VERSION } from "@/src/config/beta";
 import { useToast } from "@/src/components/Toast";
 import { useAuth } from "@/src/context/AuthContext";
@@ -121,20 +122,24 @@ export default function BetaLogin() {
           <Text style={styles.tagline}>Trivia for the fans who remember the backup.</Text>
         </View>
 
-        <View style={styles.card}>
+        <Sticker fill={colors.surfaceSecondary} radius={radius.lg} style={styles.cardSticker} contentStyle={styles.card}>
           <View style={styles.modeRow}>
-            <Pressable
-              style={[styles.modeButton, mode === "register" && styles.modeButtonActive]}
+            <StickerChip
+              label="Create Account"
+              selected={mode === "register"}
               onPress={() => setMode("register")}
-            >
-              <Text style={[styles.modeText, mode === "register" && styles.modeTextActive]}>Create Account</Text>
-            </Pressable>
-            <Pressable
-              style={[styles.modeButton, mode === "login" && styles.modeButtonActive]}
+              tone="brand"
+              style={styles.modeChip}
+              testID="beta-register-mode"
+            />
+            <StickerChip
+              label="Sign In"
+              selected={mode === "login"}
               onPress={() => setMode("login")}
-            >
-              <Text style={[styles.modeText, mode === "login" && styles.modeTextActive]}>Sign In</Text>
-            </Pressable>
+              tone="cyan"
+              style={styles.modeChip}
+              testID="beta-login-mode"
+            />
           </View>
 
           {mode === "register" && (
@@ -185,7 +190,7 @@ export default function BetaLogin() {
               autoCapitalize="none"
               textContentType={mode === "register" ? "newPassword" : "password"}
               style={styles.passwordInput}
-              onSubmitEditing={submit}
+              onSubmitEditing={() => void submit()}
               testID="beta-password"
             />
             <Pressable onPress={() => setShowPassword((value) => !value)} style={styles.eyeButton}>
@@ -197,25 +202,16 @@ export default function BetaLogin() {
             </Pressable>
           </View>
 
-          <Pressable
-            style={({ pressed }) => [styles.submitButton, pressed && styles.submitPressed]}
-            onPress={submit}
-            disabled={working}
+          <StickerButton
+            label={mode === "register" ? "Enter the Beta" : "Sign In"}
+            icon={mode === "register" ? "ticket-outline" : "log-in-outline"}
+            tone={mode === "register" ? "brand" : "cyan"}
+            size="lg"
+            fullWidth
+            loading={working}
+            onPress={() => void submit()}
             testID="beta-auth-submit"
-          >
-            {working ? (
-              <ActivityIndicator color={colors.ink} />
-            ) : (
-              <>
-                <Ionicons
-                  name={mode === "register" ? "ticket-outline" : "log-in-outline"}
-                  size={21}
-                  color={colors.ink}
-                />
-                <Text style={styles.submitText}>{mode === "register" ? "Enter the Beta" : "Sign In"}</Text>
-              </>
-            )}
-          </Pressable>
+          />
 
           <View style={styles.notice}>
             <Ionicons name="information-circle-outline" size={18} color={colors.brandPrimary} />
@@ -223,7 +219,7 @@ export default function BetaLogin() {
               Closed alpha build. Password recovery is not available yet, so use a password you can remember.
             </Text>
           </View>
-        </View>
+        </Sticker>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -248,18 +244,16 @@ const styles = StyleSheet.create({
   betaBadgeText: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: 10, letterSpacing: 0.8 },
   wordmark: { color: colors.onSurface, fontFamily: fonts.poster, fontSize: 46, letterSpacing: 1, textAlign: "center" },
   tagline: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: fontSize.base, textAlign: "center" },
-  card: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.md, borderWidth: 2, borderColor: colors.ink },
-  modeRow: { flexDirection: "row", backgroundColor: colors.surfaceTertiary, borderRadius: radius.md, padding: 4 },
-  modeButton: { flex: 1, minHeight: 42, alignItems: "center", justifyContent: "center", borderRadius: radius.sm },
-  modeButtonActive: { backgroundColor: colors.surfaceInverse },
-  modeText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },
-  modeTextActive: { color: colors.onSurfaceInverse },
+  cardSticker: { alignSelf: "stretch" },
+  card: { padding: spacing.lg, gap: spacing.md },
+  modeRow: { flexDirection: "row", gap: spacing.sm, marginBottom: spacing.xs },
+  modeChip: { flex: 1 },
   input: {
     minHeight: 52,
     borderRadius: radius.md,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 2,
+    borderColor: colors.ink,
     paddingHorizontal: spacing.md,
     color: colors.onSurface,
     fontFamily: fonts.body,
@@ -269,26 +263,13 @@ const styles = StyleSheet.create({
     minHeight: 52,
     borderRadius: radius.md,
     backgroundColor: colors.surface,
-    borderWidth: 1,
-    borderColor: colors.border,
+    borderWidth: 2,
+    borderColor: colors.ink,
     flexDirection: "row",
     alignItems: "center",
   },
   passwordInput: { flex: 1, minHeight: 50, paddingHorizontal: spacing.md, color: colors.onSurface, fontFamily: fonts.body, fontSize: fontSize.base },
   eyeButton: { width: 50, minHeight: 50, alignItems: "center", justifyContent: "center" },
-  submitButton: {
-    minHeight: 54,
-    borderRadius: radius.lg,
-    borderWidth: 3,
-    borderColor: colors.ink,
-    backgroundColor: colors.brandPrimary,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: spacing.sm,
-  },
-  submitPressed: { transform: [{ translateY: 2 }] },
-  submitText: { color: colors.ink, fontFamily: fonts.cartoon, fontSize: 21, letterSpacing: 0.6 },
   notice: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingTop: spacing.xs },
   noticeText: { flex: 1, color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: fontSize.sm, lineHeight: 18 },
 });
