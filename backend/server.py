@@ -1,10 +1,13 @@
 import os
 import sys
 import types
+import uuid
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException
 from openai import AsyncOpenAI
+from pydantic import BaseModel, Field
 from starlette.middleware.cors import CORSMiddleware
 
 # Keep the legacy app importable on hosts that do not install Emergent's private
@@ -45,6 +48,42 @@ openai_client = (
     else None
 )
 
+QUIZ_SESSION_TTL = timedelta(hours=2)
+BASE_QUIZ_POINTS = 100
+
+
+class PublicQuizQuestion(BaseModel):
+    id: str
+    question: str
+    options: list[str]
+    difficulty: Optional[str] = None
+    tags: list[str] = Field(default_factory=list)
+    deep_cut: bool = False
+
+
+class QuizStartResponse(BaseModel):
+    session_id: str
+    total: int
+    question_index: int
+    question: PublicQuizQuestion
+
+
+class QuizAnswerRequest(BaseModel):
+    selected_index: Optional[int] = Field(default=None, ge=0, le=3)
+
+
+class QuizAnswerResponse(BaseModel):
+    correct: bool
+    correct_index: int
+    score: int
+    correct_count: int
+    question_index: int
+    total: int
+    complete: bool
+    next_question: Optional[PublicQuizQuestion] = None
+    progression: Optional[dict] = None
+    user: Optional[dict] = None
+
 
 def _remove_route(path: str, method: str) -> None:
     method = method.upper()
@@ -84,6 +123,21 @@ def _configure_cors() -> None:
     app.middleware_stack = None
 
 
+def _public_question(question: dict) -> PublicQuizQuestion:
+    return PublicQuizQuestion(
+        id=str(question["id"]),
+        question=str(question["question"]),
+        options=[str(option) for option in question["options"]],
+        difficulty=question.get("difficulty"),
+        tags=list(question.get("tags") or []),
+        deep_cut=bool(question.get("deep_cut")),
+    )
+
+
+def _now_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 _configure_cors()
 _remove_route("/api/quiz/generate", "POST")
 _remove_route("/api/lobbies/{lobby_id}/start", "POST")
@@ -107,6 +161,155 @@ async def generate_quiz(body: QuizRequest, authorization: Optional[str] = Header
         count=max(3, min(body.count, 30)),
     )
     return await question_bank.fetch_approved_questions(db, query, user_id=user["user_id"])
+
+
+@app.post("/api/v2/quiz/start", response_model=QuizStartResponse)
+async def start_quiz_session(body: QuizRequest, authorization: Optional[str] = Header(None)):
+    """Start a server-authoritative single-player quiz.
+
+    Correct answers are retained server-side. The client receives one public question
+    at a time and cannot calculate or submit its own final score.
+    """
+    user = await get_current_user(authorization)
+    sport_keys = [s for s in (body.sports or [body.sport]) if s]
+    valid_sports = set(question_bank.CATEGORY_ALIASES.values())
+    if (
+        not sport_keys
+        or any(question_bank.canonical_sport(s) not in valid_sports for s in sport_keys)
+        or body.difficulty not in DIFFICULTIES
+        or body.era not in ERAS
+    ):
+        raise HTTPException(status_code=400, detail="Invalid sport, difficulty or era")
+
+    query = question_bank.QuestionBankQuery(
+        sports=sport_keys,
+        difficulty=body.difficulty,
+        count=max(3, min(body.count, 30)),
+    )
+    questions = await question_bank.fetch_approved_questions(db, query, user_id=user["user_id"])
+    if len(questions) < 3:
+        raise HTTPException(status_code=503, detail="Not enough approved questions matched your filters")
+
+    session_id = f"quiz_{uuid.uuid4().hex}"
+    now = _now_utc()
+    await db.quiz_sessions.insert_one({
+        "id": session_id,
+        "user_id": user["user_id"],
+        "sport": question_bank.canonical_sport(sport_keys[0]),
+        "sports": [question_bank.canonical_sport(s) for s in sport_keys],
+        "difficulty": body.difficulty,
+        "era": body.era,
+        "questions": questions,
+        "current_index": 0,
+        "score": 0,
+        "correct_count": 0,
+        "answers": [],
+        "status": "active",
+        "created_at": now,
+        "expires_at": now + QUIZ_SESSION_TTL,
+    })
+    return QuizStartResponse(
+        session_id=session_id,
+        total=len(questions),
+        question_index=0,
+        question=_public_question(questions[0]),
+    )
+
+
+@app.post("/api/v2/quiz/{session_id}/answer", response_model=QuizAnswerResponse)
+async def answer_quiz_session(
+    session_id: str,
+    body: QuizAnswerRequest,
+    authorization: Optional[str] = Header(None),
+):
+    user = await get_current_user(authorization)
+    session = await db.quiz_sessions.find_one({"id": session_id, "user_id": user["user_id"]}, {"_id": 0})
+    if not session:
+        raise HTTPException(status_code=404, detail="Quiz session not found")
+    if session.get("status") != "active":
+        raise HTTPException(status_code=409, detail="Quiz session is already complete")
+    expires_at = session.get("expires_at")
+    if expires_at and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at and expires_at < _now_utc():
+        await db.quiz_sessions.update_one({"id": session_id}, {"$set": {"status": "expired"}})
+        raise HTTPException(status_code=410, detail="Quiz session expired")
+
+    questions = session.get("questions") or []
+    index = int(session.get("current_index", 0))
+    if index >= len(questions):
+        raise HTTPException(status_code=409, detail="Quiz session has no remaining questions")
+
+    question = questions[index]
+    correct_index = int(question["correct_index"])
+    is_correct = body.selected_index == correct_index
+    score = int(session.get("score", 0)) + (BASE_QUIZ_POINTS if is_correct else 0)
+    correct_count = int(session.get("correct_count", 0)) + (1 if is_correct else 0)
+    next_index = index + 1
+    complete = next_index >= len(questions)
+    answer_detail = {
+        "question_id": question["id"],
+        "selected_index": body.selected_index,
+        "correct": is_correct,
+        "difficulty": question.get("difficulty") or session.get("difficulty"),
+        "tags": list(question.get("tags") or []),
+        "deep_cut": bool(question.get("deep_cut")),
+    }
+
+    update = {
+        "$set": {
+            "current_index": next_index,
+            "score": score,
+            "correct_count": correct_count,
+            "status": "complete" if complete else "active",
+            "updated_at": _now_utc(),
+        },
+        "$push": {"answers": answer_detail},
+    }
+    await db.quiz_sessions.update_one({"id": session_id, "current_index": index}, update)
+
+    progression = None
+    updated_user = None
+    if complete:
+        sport = session.get("sport") or "general"
+        sport_scores = user.get("sport_scores", {}) or {}
+        sport_scores[sport] = sport_scores.get(sport, 0) + score
+        best_sport = max(sport_scores, key=sport_scores.get) if sport_scores else None
+        await db.users.update_one(
+            {"user_id": user["user_id"]},
+            {
+                "$inc": {
+                    "total_score": score,
+                    "matches": 1,
+                    "correct_answers": correct_count,
+                    "total_answers": len(questions),
+                },
+                "$set": {"sport_scores": sport_scores, "best_sport": best_sport},
+            },
+        )
+        progression_answers = [*(session.get("answers") or []), answer_detail]
+        progression = await prog.process_quiz_answers(
+            db,
+            user,
+            progression_answers,
+            fallback_difficulty=session.get("difficulty") or "medium",
+        )
+        updated = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
+        updated_user = _user_out(updated)
+
+    next_question = _public_question(questions[next_index]) if not complete else None
+    return QuizAnswerResponse(
+        correct=is_correct,
+        correct_index=correct_index,
+        score=score,
+        correct_count=correct_count,
+        question_index=index,
+        total=len(questions),
+        complete=complete,
+        next_question=next_question,
+        progression=progression,
+        user=updated_user,
+    )
 
 
 @app.post("/api/lobbies/{lobby_id}/start")
@@ -180,3 +383,5 @@ async def health_check():
 @app.on_event("startup")
 async def question_bank_startup():
     await question_bank.ensure_indexes(db)
+    await db.quiz_sessions.create_index("id", unique=True)
+    await db.quiz_sessions.create_index("expires_at", expireAfterSeconds=0)
