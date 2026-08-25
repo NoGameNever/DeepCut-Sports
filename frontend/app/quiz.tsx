@@ -9,7 +9,6 @@ import { api } from "@/src/api/client";
 import { sportName, timerOption } from "@/src/constants/sports";
 import { useToast } from "@/src/components/Toast";
 import { UserAvatar } from "@/src/components/UserAvatar";
-import { Sticker } from "@/src/components/Sticker";
 import { useAuth } from "@/src/context/AuthContext";
 import { setPendingProgression } from "@/src/state/progressionEvent";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
@@ -279,7 +278,7 @@ export default function Quiz() {
         }, 1100);
       } catch {
         setLocked(false);
-        toast.show?.("Couldn't submit answer", "error");
+        toast.show("Couldn't submit answer", "error");
       }
     },
     [locked, singleSessionId, singleQuestion, difficulty, finishSinglePlayer, cfgTimer, toast]
@@ -387,7 +386,9 @@ export default function Quiz() {
       )}
 
       <Animated.View entering={FadeIn.duration(180)} style={styles.questionCard}>
-        <Sticker label={q.deep_cut ? "DEEP CUT" : difficulty?.toUpperCase()} />
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{q.deep_cut ? "DEEP CUT" : difficulty?.toUpperCase()}</Text>
+        </View>
         <Text style={styles.questionText}>{q.question}</Text>
       </Animated.View>
 
@@ -410,31 +411,33 @@ export default function Quiz() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.lg },
-  centered: { flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", padding: spacing.xl },
-  centerText: { color: colors.onSurface, fontFamily: fonts.bold, fontSize: fontSize.lg, marginTop: spacing.md, textAlign: "center" },
+  container: { flex: 1, backgroundColor: colors.surface, paddingHorizontal: spacing.lg },
+  centered: { flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  centerText: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg, marginTop: spacing.md, textAlign: "center" },
   retryBtn: { marginTop: spacing.lg, backgroundColor: colors.brandPrimary, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radius.lg },
-  retryText: { color: "#fff", fontFamily: fonts.bold },
-  quitText: { color: colors.onSurfaceSecondary, fontFamily: fonts.semibold },
+  retryText: { color: "#fff", fontFamily: fonts.bodySemiBold },
+  quitText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold },
   topRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   iconBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20, backgroundColor: colors.surfaceSecondary },
-  progressTrack: { flex: 1, height: 10, borderRadius: 999, backgroundColor: colors.surfaceTertiary, overflow: "hidden" },
-  progressBar: { height: "100%", backgroundColor: colors.brandPrimary, borderRadius: 999 },
-  timerPill: { minWidth: 58, height: 40, borderRadius: 20, backgroundColor: colors.surfaceSecondary, flexDirection: "row", gap: 5, alignItems: "center", justifyContent: "center" },
+  progressTrack: { flex: 1, height: 10, borderRadius: radius.pill, backgroundColor: colors.surfaceTertiary, overflow: "hidden" },
+  progressBar: { height: "100%", backgroundColor: colors.brandPrimary, borderRadius: radius.pill },
+  timerPill: { minWidth: 58, height: 40, borderRadius: radius.pill, backgroundColor: colors.surfaceSecondary, flexDirection: "row", gap: 5, alignItems: "center", justifyContent: "center" },
   timerUrgent: { backgroundColor: colors.surfaceTertiary },
-  timerText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bold },
+  timerText: { color: colors.onSurfaceSecondary, fontFamily: fonts.displayBold },
   timerTextUrgent: { color: colors.error },
   metaRow: { marginTop: spacing.md, flexDirection: "row", justifyContent: "space-between" },
-  metaText: { color: colors.onSurfaceSecondary, fontFamily: fonts.semibold },
-  scoreText: { color: colors.brandPrimary, fontFamily: fonts.bold },
+  metaText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold },
+  scoreText: { color: colors.brandPrimary, fontFamily: fonts.displayBold },
   liveRow: { marginTop: spacing.md, flexDirection: "row", gap: spacing.sm, flexWrap: "wrap" },
   liveChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, paddingVertical: 6, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary, maxWidth: "48%" },
-  liveName: { color: colors.onSurface, fontFamily: fonts.semibold, maxWidth: 90 },
-  liveScore: { color: colors.brandPrimary, fontFamily: fonts.bold },
-  questionCard: { marginTop: spacing.xl, backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.xl, minHeight: 180, justifyContent: "center" },
-  questionText: { color: colors.onSurface, fontFamily: fonts.bold, fontSize: fontSize.xl, lineHeight: 32, marginTop: spacing.md },
+  liveName: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, maxWidth: 90 },
+  liveScore: { color: colors.brandPrimary, fontFamily: fonts.displayBold },
+  questionCard: { marginTop: spacing.xl, backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.xl, minHeight: 180, justifyContent: "center" },
+  badge: { alignSelf: "flex-start", paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.pill, backgroundColor: colors.brandTertiary },
+  badgeText: { color: colors.onBrandTertiary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm, letterSpacing: 0.8 },
+  questionText: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize.xl, lineHeight: 32, marginTop: spacing.md },
   optionsWrap: { marginTop: spacing.xl, gap: spacing.md },
-  optionBtn: { minHeight: 72, borderRadius: radius.xl, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.md },
-  optionLetter: { color: "#fff", fontFamily: fonts.bold, fontSize: fontSize.lg, width: 24 },
-  optionText: { color: "#fff", fontFamily: fonts.bold, fontSize: fontSize.md, flex: 1 },
+  optionBtn: { minHeight: 72, borderRadius: radius.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.md },
+  optionLetter: { color: "#fff", fontFamily: fonts.displayBold, fontSize: fontSize.lg, width: 24 },
+  optionText: { color: "#fff", fontFamily: fonts.bodySemiBold, fontSize: fontSize.base, flex: 1 },
 });
