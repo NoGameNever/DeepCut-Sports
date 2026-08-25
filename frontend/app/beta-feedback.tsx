@@ -1,8 +1,6 @@
 import { useMemo, useState } from "react";
 import {
-  ActivityIndicator,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,17 +12,28 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 
 import { betaApi } from "@/src/api/beta";
+import { Sticker } from "@/src/components/Sticker";
+import {
+  StickerButton,
+  StickerChip,
+  StickerIconButton,
+} from "@/src/components/StickerControls";
 import { BETA_VERSION } from "@/src/config/beta";
 import { useToast } from "@/src/components/Toast";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
 type FeedbackType = "bug" | "question" | "idea" | "other";
 
-const TYPES: Array<{ key: FeedbackType; label: string; icon: keyof typeof Ionicons.glyphMap }> = [
-  { key: "bug", label: "Bug", icon: "bug-outline" },
-  { key: "question", label: "Bad Question", icon: "help-circle-outline" },
-  { key: "idea", label: "Idea", icon: "bulb-outline" },
-  { key: "other", label: "Other", icon: "chatbox-ellipses-outline" },
+const TYPES: Array<{
+  key: FeedbackType;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+  tone: "danger" | "warning" | "gold" | "purple";
+}> = [
+  { key: "bug", label: "Bug", icon: "bug-outline", tone: "danger" },
+  { key: "question", label: "Bad Question", icon: "help-circle-outline", tone: "warning" },
+  { key: "idea", label: "Idea", icon: "bulb-outline", tone: "gold" },
+  { key: "other", label: "Other", icon: "chatbox-ellipses-outline", tone: "purple" },
 ];
 
 export default function BetaFeedback() {
@@ -75,9 +84,12 @@ export default function BetaFeedback() {
         ]}
       >
         <View style={styles.header}>
-          <Pressable style={styles.backButton} onPress={() => router.back()}>
-            <Ionicons name="chevron-back" size={24} color={colors.onSurface} />
-          </Pressable>
+          <StickerIconButton
+            icon="chevron-back"
+            tone="dark"
+            onPress={() => router.back()}
+            accessibilityLabel="Go back"
+          />
           <View style={{ flex: 1 }}>
             <Text style={styles.eyebrow}>{BETA_VERSION.toUpperCase()}</Text>
             <Text style={styles.title}>SEND FEEDBACK</Text>
@@ -85,35 +97,42 @@ export default function BetaFeedback() {
         </View>
 
         {submitted ? (
-          <View style={styles.successCard}>
+          <Sticker fill={colors.surfaceSecondary} radius={radius.lg} contentStyle={styles.successCard}>
             <Ionicons name="checkmark-circle" size={56} color={colors.success} />
             <Text style={styles.successTitle}>RECEIVED</Text>
             <Text style={styles.successText}>Your note is in the DeepCut feedback inbox.</Text>
-            <Pressable style={styles.primaryButton} onPress={() => router.replace("/beta")}>
-              <Text style={styles.primaryText}>Back to Beta</Text>
-            </Pressable>
-            <Pressable style={styles.secondaryButton} onPress={() => setSubmitted(false)}>
-              <Text style={styles.secondaryText}>Send Another</Text>
-            </Pressable>
-          </View>
+            <StickerButton
+              label="Back to Beta"
+              icon="home"
+              tone="success"
+              fullWidth
+              onPress={() => router.replace("/beta")}
+            />
+            <StickerButton
+              label="Send Another"
+              icon="add-circle-outline"
+              tone="dark"
+              fullWidth
+              onPress={() => setSubmitted(false)}
+            />
+          </Sticker>
         ) : (
           <>
-            <View style={styles.card}>
+            <Sticker fill={colors.surfaceSecondary} radius={radius.lg} contentStyle={styles.card}>
               <Text style={styles.label}>WHAT KIND OF NOTE IS THIS?</Text>
               <View style={styles.typeGrid}>
-                {TYPES.map((item) => {
-                  const active = feedbackType === item.key;
-                  return (
-                    <Pressable
-                      key={item.key}
-                      onPress={() => setFeedbackType(item.key)}
-                      style={[styles.typeButton, active && styles.typeButtonActive]}
-                    >
-                      <Ionicons name={item.icon} size={20} color={active ? colors.ink : colors.onSurfaceSecondary} />
-                      <Text style={[styles.typeText, active && styles.typeTextActive]}>{item.label}</Text>
-                    </Pressable>
-                  );
-                })}
+                {TYPES.map((item) => (
+                  <StickerChip
+                    key={item.key}
+                    label={item.label}
+                    icon={item.icon}
+                    tone={item.tone}
+                    selected={feedbackType === item.key}
+                    onPress={() => setFeedbackType(item.key)}
+                    style={styles.typeChip}
+                    testID={`beta-feedback-type-${item.key}`}
+                  />
+                ))}
               </View>
 
               <Text style={styles.label}>WHAT HAPPENED?</Text>
@@ -130,22 +149,17 @@ export default function BetaFeedback() {
               />
               <Text style={styles.counter}>{message.length}/2000</Text>
 
-              <Pressable
-                style={({ pressed }) => [styles.primaryButton, pressed && styles.pressed]}
-                onPress={submit}
-                disabled={working}
+              <StickerButton
+                label="Send Feedback"
+                icon="paper-plane"
+                tone="brand"
+                size="lg"
+                fullWidth
+                loading={working}
+                onPress={() => void submit()}
                 testID="beta-feedback-submit"
-              >
-                {working ? (
-                  <ActivityIndicator color={colors.ink} />
-                ) : (
-                  <>
-                    <Ionicons name="paper-plane" size={20} color={colors.ink} />
-                    <Text style={styles.primaryText}>Send Feedback</Text>
-                  </>
-                )}
-              </Pressable>
-            </View>
+              />
+            </Sticker>
 
             <View style={styles.privacyNote}>
               <Ionicons name="shield-checkmark-outline" size={19} color={colors.brandPrimary} />
@@ -164,26 +178,17 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   content: { paddingHorizontal: spacing.lg, gap: spacing.lg },
   header: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  backButton: { width: 44, height: 44, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: colors.border },
   eyebrow: { color: colors.brandPrimary, fontFamily: fonts.bodySemiBold, fontSize: 10, letterSpacing: 1.2 },
   title: { color: colors.onSurface, fontFamily: fonts.poster, fontSize: 34, letterSpacing: 0.8 },
-  card: { backgroundColor: colors.surfaceSecondary, borderWidth: 2, borderColor: colors.ink, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.md },
+  card: { padding: spacing.lg, gap: spacing.md },
   label: { color: colors.onSurfaceTertiary, fontFamily: fonts.bodySemiBold, fontSize: 10, letterSpacing: 0.9, marginTop: spacing.xs },
   typeGrid: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  typeButton: { width: "48%", minHeight: 48, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm },
-  typeButtonActive: { backgroundColor: colors.brandPrimary, borderWidth: 2, borderColor: colors.ink },
-  typeText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },
-  typeTextActive: { color: colors.ink },
-  messageInput: { minHeight: 190, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, color: colors.onSurface, fontFamily: fonts.body, fontSize: fontSize.base, lineHeight: 22, padding: spacing.md },
+  typeChip: { width: "48%", flexGrow: 1 },
+  messageInput: { minHeight: 190, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 2, borderColor: colors.ink, color: colors.onSurface, fontFamily: fonts.body, fontSize: fontSize.base, lineHeight: 22, padding: spacing.md },
   counter: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: 11, textAlign: "right", marginTop: -spacing.sm },
-  primaryButton: { minHeight: 54, borderRadius: radius.lg, backgroundColor: colors.brandPrimary, borderWidth: 3, borderColor: colors.ink, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingHorizontal: spacing.lg },
-  primaryText: { color: colors.ink, fontFamily: fonts.cartoon, fontSize: 20, letterSpacing: 0.5 },
-  pressed: { transform: [{ translateY: 2 }] },
-  secondaryButton: { minHeight: 48, borderRadius: radius.md, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.lg },
-  secondaryText: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize.base },
   privacyNote: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingHorizontal: spacing.sm },
   privacyText: { flex: 1, color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: fontSize.sm, lineHeight: 18 },
-  successCard: { backgroundColor: colors.surfaceSecondary, borderWidth: 2, borderColor: colors.ink, borderRadius: radius.lg, padding: spacing.xl, alignItems: "center", gap: spacing.md },
+  successCard: { padding: spacing.xl, alignItems: "center", gap: spacing.md },
   successTitle: { color: colors.onSurface, fontFamily: fonts.poster, fontSize: 38, letterSpacing: 0.8 },
   successText: { color: colors.onSurfaceSecondary, fontFamily: fonts.body, fontSize: fontSize.base, textAlign: "center", marginBottom: spacing.md },
 });

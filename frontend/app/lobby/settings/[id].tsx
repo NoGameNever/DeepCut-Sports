@@ -1,13 +1,27 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Switch } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useLocalSearchParams, useRouter, Stack } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
+
 import { api } from "@/src/api/client";
+import {
+  StickerButton,
+  StickerChip,
+  StickerIconButton,
+} from "@/src/components/StickerControls";
 import { useToast } from "@/src/components/Toast";
 import {
-  GAME_TYPES, DIFFICULTIES, CATEGORIES, ERAS, ANSWER_FORMATS, TIMERS, QUESTION_PRESETS, DEFAULT_SETTINGS, Opt,
+  GAME_TYPES,
+  DIFFICULTIES,
+  CATEGORIES,
+  ERAS,
+  ANSWER_FORMATS,
+  TIMERS,
+  QUESTION_PRESETS,
+  DEFAULT_SETTINGS,
+  Opt,
 } from "@/src/constants/lobbySettings";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
@@ -36,25 +50,30 @@ export default function LobbySettings() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const set = (k: string, v: any) => {
+  const set = (key: string, value: any) => {
     if (readOnly) return;
     Haptics.selectionAsync();
-    setSettings((s: any) => ({ ...s, [k]: v }));
+    setSettings((current: any) => ({ ...current, [key]: value }));
   };
 
   const toggleCat = (key: string) => {
     if (readOnly) return;
     Haptics.selectionAsync();
-    setSettings((s: any) => {
-      const has = s.selected_categories.includes(key);
-      const next = has ? s.selected_categories.filter((c: string) => c !== key) : [...s.selected_categories, key];
-      return { ...s, selected_categories: next.length ? next : s.selected_categories };
+    setSettings((current: any) => {
+      const has = current.selected_categories.includes(key);
+      const next = has
+        ? current.selected_categories.filter((category: string) => category !== key)
+        : [...current.selected_categories, key];
+      return { ...current, selected_categories: next.length ? next : current.selected_categories };
     });
   };
 
-  const step = (k: string, delta: number, min: number, max: number) => {
+  const step = (key: string, delta: number, min: number, max: number) => {
     if (readOnly) return;
-    setSettings((s: any) => ({ ...s, [k]: Math.max(min, Math.min(max, (s[k] || min) + delta)) }));
+    setSettings((current: any) => ({
+      ...current,
+      [key]: Math.max(min, Math.min(max, (current[key] || min) + delta)),
+    }));
   };
 
   const save = async () => {
@@ -79,24 +98,19 @@ export default function LobbySettings() {
     );
   }
 
-  const Chips = ({ opts, value, onPick, testPrefix }: { opts: Opt[]; value: string; onPick: (k: string) => void; testPrefix: string }) => (
+  const Chips = ({ opts, value, onPick, testPrefix }: { opts: Opt[]; value: string; onPick: (key: string) => void; testPrefix: string }) => (
     <View style={styles.chipWrap}>
-      {opts.map((o) => {
-        const active = value === o.key;
-        return (
-          <Pressable
-            key={o.key}
-            testID={`${testPrefix}-${o.key}`}
-            disabled={o.soon || readOnly}
-            onPress={() => onPick(o.key)}
-            style={[styles.chip, active && styles.chipActive, o.soon && styles.chipSoon]}
-          >
-            <Text style={[styles.chipText, active && styles.chipTextActive, o.soon && styles.chipTextSoon]}>
-              {o.label}{o.soon ? " · soon" : ""}
-            </Text>
-          </Pressable>
-        );
-      })}
+      {opts.map((option, index) => (
+        <StickerChip
+          key={option.key}
+          label={`${option.label}${option.soon ? " · soon" : ""}`}
+          selected={value === option.key}
+          tone={index % 2 === 0 ? "brand" : "cyan"}
+          disabled={option.soon || readOnly}
+          onPress={() => onPick(option.key)}
+          testID={`${testPrefix}-${option.key}`}
+        />
+      ))}
     </View>
   );
 
@@ -106,10 +120,10 @@ export default function LobbySettings() {
       <Switch
         testID={`toggle-${k}`}
         value={!!settings[k]}
-        onValueChange={(v) => set(k, v)}
+        onValueChange={(value) => set(k, value)}
         disabled={readOnly}
         trackColor={{ true: colors.brandPrimary, false: colors.surfaceTertiary }}
-        thumbColor={colors.onSurface}
+        thumbColor={settings[k] ? colors.gold : colors.onSurface}
       />
     </View>
   );
@@ -118,13 +132,25 @@ export default function LobbySettings() {
     <View style={styles.toggleRow}>
       <Text style={styles.toggleLabel}>{label}</Text>
       <View style={styles.stepper}>
-        <Pressable testID={`step-${k}-minus`} style={styles.stepBtn} onPress={() => step(k, -delta, min, max)} disabled={readOnly}>
-          <Ionicons name="remove" size={18} color={colors.onSurface} />
-        </Pressable>
+        <StickerIconButton
+          icon="remove"
+          tone="dark"
+          size={36}
+          disabled={readOnly}
+          onPress={() => step(k, -delta, min, max)}
+          testID={`step-${k}-minus`}
+          accessibilityLabel={`Decrease ${label}`}
+        />
         <Text style={styles.stepValue}>{settings[k]}</Text>
-        <Pressable testID={`step-${k}-plus`} style={styles.stepBtn} onPress={() => step(k, delta, min, max)} disabled={readOnly}>
-          <Ionicons name="add" size={18} color={colors.onSurface} />
-        </Pressable>
+        <StickerIconButton
+          icon="add"
+          tone="brand"
+          size={36}
+          disabled={readOnly}
+          onPress={() => step(k, delta, min, max)}
+          testID={`step-${k}-plus`}
+          accessibilityLabel={`Increase ${label}`}
+        />
       </View>
     </View>
   );
@@ -133,18 +159,28 @@ export default function LobbySettings() {
     <View style={styles.container} testID="lobby-settings-screen">
       <Stack.Screen options={{ headerShown: false }} />
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn} testID="settings-back">
-          <Ionicons name="close" size={22} color={colors.onSurface} />
-        </Pressable>
+        <StickerIconButton
+          icon="close"
+          tone="dark"
+          onPress={() => router.back()}
+          testID="settings-back"
+          accessibilityLabel="Close settings"
+        />
         <Text style={styles.headerTitle}>GAME SETTINGS</Text>
-        {readOnly ? <View style={{ width: 40 }} /> : (
-          <Pressable testID="reset-defaults-button" onPress={() => setSettings({ ...DEFAULT_SETTINGS })} style={styles.resetBtn}>
-            <Ionicons name="refresh" size={18} color={colors.onSurfaceSecondary} />
-          </Pressable>
+        {readOnly ? (
+          <View style={{ width: 46 }} />
+        ) : (
+          <StickerIconButton
+            icon="refresh"
+            tone="gold"
+            onPress={() => setSettings({ ...DEFAULT_SETTINGS })}
+            testID="reset-defaults-button"
+            accessibilityLabel="Reset settings"
+          />
         )}
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 140 }} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={{ padding: spacing.lg, paddingBottom: 150 }} showsVerticalScrollIndicator={false}>
         {readOnly && (
           <View style={styles.roBanner} testID="settings-readonly-banner">
             <Ionicons name="lock-closed" size={16} color={colors.onSurfaceSecondary} />
@@ -153,31 +189,34 @@ export default function LobbySettings() {
         )}
 
         <Text style={styles.group}>GAME MODE</Text>
-        <Chips opts={GAME_TYPES} value={settings.game_type} onPick={(k) => set("game_type", k)} testPrefix="gametype" />
+        <Chips opts={GAME_TYPES} value={settings.game_type} onPick={(key) => set("game_type", key)} testPrefix="gametype" />
         <Text style={styles.sub}>Difficulty</Text>
-        <Chips opts={DIFFICULTIES} value={settings.difficulty} onPick={(k) => set("difficulty", k)} testPrefix="difficulty" />
+        <Chips opts={DIFFICULTIES} value={settings.difficulty} onPick={(key) => set("difficulty", key)} testPrefix="difficulty" />
         <Text style={styles.sub}>Answer Format</Text>
-        <Chips opts={ANSWER_FORMATS} value={settings.answer_format} onPick={(k) => set("answer_format", k)} testPrefix="format" />
+        <Chips opts={ANSWER_FORMATS} value={settings.answer_format} onPick={(key) => set("answer_format", key)} testPrefix="format" />
 
         <Text style={styles.group}>QUESTIONS</Text>
-        <Chips opts={QUESTION_PRESETS} value={String(settings.question_count)} onPick={(k) => set("question_count", parseInt(k, 10))} testPrefix="qcount" />
+        <Chips opts={QUESTION_PRESETS} value={String(settings.question_count)} onPick={(key) => set("question_count", parseInt(key, 10))} testPrefix="qcount" />
         <Stepper label="Custom count" k="question_count" min={5} max={50} />
         <Text style={styles.sub}>Categories</Text>
         <View style={styles.chipWrap}>
-          {CATEGORIES.map((c) => {
-            const active = settings.selected_categories.includes(c.key);
-            return (
-              <Pressable key={c.key} testID={`category-${c.key}`} disabled={readOnly} onPress={() => toggleCat(c.key)} style={[styles.chip, active && styles.chipActive]}>
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{c.label}</Text>
-              </Pressable>
-            );
-          })}
+          {CATEGORIES.map((category, index) => (
+            <StickerChip
+              key={category.key}
+              label={category.label}
+              selected={settings.selected_categories.includes(category.key)}
+              tone={index % 3 === 0 ? "gold" : index % 3 === 1 ? "cyan" : "brand"}
+              disabled={readOnly}
+              onPress={() => toggleCat(category.key)}
+              testID={`category-${category.key}`}
+            />
+          ))}
         </View>
         <Text style={styles.sub}>Era</Text>
-        <Chips opts={ERAS} value={settings.era_filter} onPick={(k) => set("era_filter", k)} testPrefix="era" />
+        <Chips opts={ERAS} value={settings.era_filter} onPick={(key) => set("era_filter", key)} testPrefix="era" />
 
         <Text style={styles.group}>TIMER</Text>
-        <Chips opts={TIMERS} value={String(settings.timer_seconds)} onPick={(k) => set("timer_seconds", parseInt(k, 10))} testPrefix="timer" />
+        <Chips opts={TIMERS} value={String(settings.timer_seconds)} onPick={(key) => set("timer_seconds", parseInt(key, 10))} testPrefix="timer" />
         <Stepper label="Custom timer (sec)" k="timer_seconds" min={0} max={120} delta={5} />
 
         <Text style={styles.group}>SCORING</Text>
@@ -202,9 +241,16 @@ export default function LobbySettings() {
 
       {!readOnly && (
         <View style={[styles.footer, { paddingBottom: insets.bottom + spacing.md }]}>
-          <Pressable testID="save-settings-button" style={styles.saveBtn} onPress={save} disabled={saving}>
-            {saving ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Text style={styles.saveText}>Save Settings</Text>}
-          </Pressable>
+          <StickerButton
+            label="Save Settings"
+            icon="save"
+            tone="brand"
+            size="lg"
+            fullWidth
+            loading={saving}
+            onPress={() => void save()}
+            testID="save-settings-button"
+          />
         </View>
       )}
     </View>
@@ -214,29 +260,18 @@ export default function LobbySettings() {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   centered: { flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center" },
-  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingBottom: spacing.md, backgroundColor: colors.surfaceSecondary, borderBottomWidth: 1, borderBottomColor: colors.divider },
-  backBtn: { width: 40, height: 40, borderRadius: radius.md, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceTertiary },
-  resetBtn: { width: 40, height: 40, borderRadius: radius.md, alignItems: "center", justifyContent: "center", backgroundColor: colors.surfaceTertiary },
+  header: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: spacing.lg, paddingBottom: spacing.md, backgroundColor: colors.surfaceSecondary, borderBottomWidth: 3, borderBottomColor: colors.ink },
   headerTitle: { color: colors.onSurface, fontFamily: fonts.poster, fontSize: 24, letterSpacing: 0.5 },
-  roBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, padding: spacing.md, marginBottom: spacing.md },
+  roBanner: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 2, borderColor: colors.ink, padding: spacing.md, marginBottom: spacing.md },
   roText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: fontSize.base },
   group: { color: colors.brandPrimary, fontFamily: fonts.poster, fontSize: 18, letterSpacing: 0.5, marginTop: spacing.xl, marginBottom: spacing.md },
   sub: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm, letterSpacing: 0.5, marginTop: spacing.lg, marginBottom: spacing.sm },
   chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
-  chip: { backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border, borderRadius: radius.pill, paddingVertical: spacing.sm, paddingHorizontal: spacing.md },
-  chipActive: { backgroundColor: colors.brandPrimary, borderColor: colors.brandPrimary },
-  chipSoon: { opacity: 0.4 },
-  chipText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: fontSize.base },
-  chipTextActive: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold },
-  chipTextSoon: { color: colors.onSurfaceTertiary },
-  toggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, marginTop: spacing.sm },
-  toggleLabel: { color: colors.onSurface, fontFamily: fonts.bodyMedium, fontSize: fontSize.lg },
+  toggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 2, borderColor: colors.ink, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, marginTop: spacing.sm, gap: spacing.md },
+  toggleLabel: { flex: 1, color: colors.onSurface, fontFamily: fonts.bodyMedium, fontSize: fontSize.lg },
   stepper: { flexDirection: "row", alignItems: "center", gap: spacing.md },
-  stepBtn: { width: 34, height: 34, borderRadius: radius.sm, backgroundColor: colors.surfaceTertiary, alignItems: "center", justifyContent: "center" },
   stepValue: { color: colors.onSurface, fontFamily: fonts.displayBold, fontSize: fontSize.xl, minWidth: 32, textAlign: "center" },
-  errorBox: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "rgba(255,59,48,0.12)", borderRadius: radius.md, padding: spacing.md, marginTop: spacing.lg },
+  errorBox: { flexDirection: "row", alignItems: "center", gap: spacing.sm, backgroundColor: "rgba(239,71,111,0.16)", borderRadius: radius.md, borderWidth: 2, borderColor: colors.error, padding: spacing.md, marginTop: spacing.lg },
   errorText: { flex: 1, color: colors.error, fontFamily: fonts.bodyMedium, fontSize: fontSize.base },
-  footer: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.lg, paddingTop: spacing.md, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.divider },
-  saveBtn: { backgroundColor: colors.brandPrimary, height: 56, borderRadius: radius.md, borderWidth: 3, borderColor: colors.ink, alignItems: "center", justifyContent: "center" },
-  saveText: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg },
+  footer: { position: "absolute", left: 0, right: 0, bottom: 0, paddingHorizontal: spacing.lg, paddingTop: spacing.md, backgroundColor: colors.surface, borderTopWidth: 3, borderTopColor: colors.ink },
 });
