@@ -6,6 +6,7 @@ the legacy provider or directly with DeepCut credentials.
 """
 
 from datetime import datetime, timedelta, timezone
+import re
 import secrets
 from typing import Callable
 
@@ -14,6 +15,11 @@ from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, EmailStr, Field
 
 SESSION_TTL = timedelta(days=30)
+USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]{3,20}$")
+BANNED_WORDS = {
+    "admin", "root", "fuck", "shit", "bitch", "nigger", "nigga", "cunt",
+    "faggot", "rape", "nazi", "slut", "whore", "dick", "pussy",
+}
 
 
 class RegisterRequest(BaseModel):
@@ -35,6 +41,15 @@ def _email(value: str) -> str:
     return value.strip().lower()
 
 
+def _email_query(email: str) -> dict:
+    return {
+        "$or": [
+            {"email_normalized": email},
+            {"email": {"$regex": f"^{re.escape(email)}$", "$options": "i"}},
+        ]
+    }
+
+
 def _hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt(rounds=12)).decode("utf-8")
 
@@ -44,6 +59,18 @@ def _verify_password(password: str, password_hash: str) -> bool:
         return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
     except (TypeError, ValueError):
         return False
+
+
+def _validate_requested_username(username: str | None) -> str | None:
+    if username is None:
+        return None
+    value = username.strip()
+    if not USERNAME_RE.fullmatch(value):
+        raise HTTPException(status_code=400, detail="Username must be 3-20 letters, numbers or underscores")
+    low = value.lower()
+    if any(word in low for word in BANNED_WORDS):
+        raise HTTPException(status_code=400, detail="That username isn't allowed")
+    return value
 
 
 async def _issue_session(db, user_id: str) -> str:
@@ -72,10 +99,8 @@ def register_routes(
     @router.post("/auth/register")
     async def register(body: RegisterRequest):
         email = _email(str(body.email))
-        existing = await db.users.find_one(
-            {"$or": [{"email_normalized": email}, {"email": {"$regex": f"^{email}$", "$options": "i"}}]},
-            {"_id": 0},
-        )
+        requested_username = _validate_requested_username(body.username)
+        existing = await db.users.find_one(_email_query(email), {"_id": 0})
         if existing:
             raise HTTPException(status_code=409, detail="An account already exists for this email")
 
@@ -103,7 +128,7 @@ def register_routes(
             }
         )
 
-        preferred = (body.username or email.split("@", 1)[0]).strip()
+        preferred = requested_username or email.split("@", 1)[0]
         username = await ensure_username(user_id, preferred)
         await db.users.update_one({"user_id": user_id}, {"$set": {"username": username}})
         user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
@@ -113,10 +138,7 @@ def register_routes(
     @router.post("/auth/login")
     async def login(body: LoginRequest):
         email = _email(str(body.email))
-        user = await db.users.find_one(
-            {"$or": [{"email_normalized": email}, {"email": {"$regex": f"^{email}$", "$options": "i"}}]},
-            {"_id": 0},
-        )
+        user = await db.users.find_one(_email_query(email), {"_id": 0})
         if not user:
             raise HTTPException(status_code=401, detail="Invalid email or password")
 
@@ -166,5 +188,6 @@ async def ensure_indexes(db) -> None:
     # Sparse keeps legacy records that do not yet have `email_normalized` compatible
     # while guaranteeing new/migrated credential accounts cannot duplicate an email.
     await db.users.create_index("email_normalized", unique=True, sparse=True)
+    # These are intentionally the same definitions as the legacy startup indexes.
     await db.user_sessions.create_index("session_token", unique=True)
     await db.user_sessions.create_index("expires_at", expireAfterSeconds=0)
