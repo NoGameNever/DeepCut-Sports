@@ -6,6 +6,7 @@ the legacy provider or directly with DeepCut credentials.
 """
 
 from datetime import datetime, timedelta, timezone
+import os
 import re
 import secrets
 from typing import Callable
@@ -16,6 +17,8 @@ from pydantic import BaseModel, EmailStr, Field
 
 SESSION_TTL = timedelta(days=30)
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]{3,20}$")
+BETA_ACCESS_CODE = os.environ.get("BETA_ACCESS_CODE", "").strip()
+BETA_COHORT = os.environ.get("BETA_COHORT", "closed_alpha_1").strip() or "closed_alpha_1"
 BANNED_WORDS = {
     "admin", "root", "fuck", "shit", "bitch", "nigger", "nigga", "cunt",
     "faggot", "rape", "nazi", "slut", "whore", "dick", "pussy",
@@ -26,6 +29,7 @@ class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     username: str | None = Field(default=None, min_length=3, max_length=20)
+    access_code: str | None = Field(default=None, max_length=128)
 
 
 class LoginRequest(BaseModel):
@@ -73,6 +77,20 @@ def _validate_requested_username(username: str | None) -> str | None:
     return value
 
 
+def _require_beta_access(submitted: str | None, configured: str | None = None) -> None:
+    """Require the configured shared beta code without ever persisting it.
+
+    Registration remains open in local/dev environments where BETA_ACCESS_CODE is unset.
+    Comparison is case-insensitive to avoid support churn from mobile keyboards.
+    """
+    expected = BETA_ACCESS_CODE if configured is None else str(configured or "").strip()
+    if not expected:
+        return
+    candidate = str(submitted or "").strip()
+    if not candidate or not secrets.compare_digest(candidate.casefold(), expected.casefold()):
+        raise HTTPException(status_code=403, detail="Invalid beta access code")
+
+
 async def _issue_session(db, user_id: str) -> str:
     now = datetime.now(timezone.utc)
     token = secrets.token_urlsafe(32)
@@ -98,6 +116,7 @@ def register_routes(
 ) -> None:
     @router.post("/auth/register")
     async def register(body: RegisterRequest):
+        _require_beta_access(body.access_code)
         email = _email(str(body.email))
         requested_username = _validate_requested_username(body.username)
         existing = await db.users.find_one(_email_query(email), {"_id": 0})
@@ -124,6 +143,9 @@ def register_routes(
                 "total_answers": 0,
                 "best_sport": None,
                 "sport_scores": {},
+                "beta_cohort": BETA_COHORT if BETA_ACCESS_CODE else None,
+                "beta_access_granted_at": now if BETA_ACCESS_CODE else None,
+                "registration_source": "closed_beta" if BETA_ACCESS_CODE else "open",
                 "created_at": now,
             }
         )
