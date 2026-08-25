@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, Platform } from "react-native";
+import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -16,7 +16,7 @@ export default function JoinLobby() {
   const { token } = useLocalSearchParams<{ token: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { user, loading, signIn, signingIn } = useAuth();
+  const { user, loading } = useAuth();
 
   const [info, setInfo] = useState<any>(null);
   const [status, setStatus] = useState<"validating" | "ready" | "joining" | "error">("validating");
@@ -56,14 +56,12 @@ export default function JoinLobby() {
     }
   }, [token, router]);
 
-  // once authenticated and invite valid, auto-join
   useEffect(() => {
     if (!loading && user && status === "ready") join();
   }, [loading, user, status, join]);
 
   const onSignIn = () => {
-    const path = Platform.OS === "web" && typeof window !== "undefined" ? window.location.pathname : undefined;
-    signIn(path);
+    router.push({ pathname: "/login", params: { returnTo: `/join/${token}` } });
   };
 
   const renderCenter = () => {
@@ -85,20 +83,15 @@ export default function JoinLobby() {
         </View>
       );
     }
-    // ready
     if (!user) {
       return (
         <View style={styles.card} testID="join-signin">
           <Text style={styles.invitedBy}>{info?.host_name} invited you</Text>
           <Text style={styles.cardTitle}>Join the {sportName(info?.sport)} lobby</Text>
           <Text style={styles.sub}>{info?.member_count}/{info?.max_players} players in</Text>
-          <Pressable style={styles.primaryBtnWide} onPress={onSignIn} disabled={signingIn} testID="join-signin-button">
-            {signingIn ? <ActivityIndicator color={colors.onBrandPrimary} /> : (
-              <>
-                <Ionicons name="logo-google" size={18} color={colors.onBrandPrimary} />
-                <Text style={styles.primaryText}>Sign in & Join</Text>
-              </>
-            )}
+          <Pressable style={styles.primaryBtnWide} onPress={onSignIn} testID="join-signin-button">
+            <Ionicons name="log-in-outline" size={18} color={colors.onBrandPrimary} />
+            <Text style={styles.primaryText}>Sign in & Join</Text>
           </Pressable>
         </View>
       );

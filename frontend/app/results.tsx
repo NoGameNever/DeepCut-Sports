@@ -8,14 +8,25 @@ import { api } from "@/src/api/client";
 import { useAuth } from "@/src/context/AuthContext";
 import { ProgressionModal } from "@/src/components/ProgressionModal";
 import { Sticker } from "@/src/components/Sticker";
+import { consumePendingProgression } from "@/src/state/progressionEvent";
 import { sportName, timerOption, eraOption } from "@/src/constants/sports";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
 const STAT_FILLS = ["#FF9F1C", "#2EC4B6", "#00B8FF"];
 
 export default function Results() {
-  const { sport, difficulty, timer, era, score, correct, total, answers, sports, count } = useLocalSearchParams<{
-    sport: string; difficulty: string; timer: string; era: string; score: string; correct: string; total: string; answers?: string; sports?: string; count?: string;
+  const { sport, difficulty, timer, era, score, correct, total, answers, sports, count, serverAuthoritative } = useLocalSearchParams<{
+    sport: string;
+    difficulty: string;
+    timer: string;
+    era: string;
+    score: string;
+    correct: string;
+    total: string;
+    answers?: string;
+    sports?: string;
+    count?: string;
+    serverAuthoritative?: string;
   }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -25,6 +36,7 @@ export default function Results() {
   const correctN = parseInt(correct || "0", 10);
   const totalN = parseInt(total || "0", 10);
   const accuracy = totalN > 0 ? Math.round((correctN / totalN) * 100) : 0;
+  const authoritative = serverAuthoritative === "1";
 
   const [rank, setRank] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(true);
@@ -34,6 +46,20 @@ export default function Results() {
   useEffect(() => {
     (async () => {
       try {
+        if (authoritative) {
+          // v2 quiz completion already wrote score, stats and progression on the server.
+          // Never call the legacy submit endpoint here or the match would be counted twice.
+          const pending = consumePendingProgression();
+          if (pending) {
+            setProgression(pending);
+            if (pending.leveled_up || pending.tier_changed || pending.unlocked_achievements?.length) {
+              setShowModal(true);
+            }
+          }
+          await refresh();
+          return;
+        }
+
         let parsed: any[] | undefined;
         try { parsed = answers ? JSON.parse(answers) : undefined; } catch {}
         const res = await api.submitQuiz({ sport, difficulty, score: scoreN, correct: correctN, total: totalN, answers: parsed });
@@ -72,8 +98,10 @@ export default function Results() {
         </Animated.View>
 
         <Animated.View entering={FadeInDown.delay(200)} style={styles.multBadge} testID="results-multiplier">
-          <Ionicons name="flame" size={15} color={colors.brandPrimary} />
-          <Text style={styles.multBadgeText}>×{multiplier.toFixed(2)} multiplier applied</Text>
+          <Ionicons name={authoritative ? "shield-checkmark" : "flame"} size={15} color={colors.brandPrimary} />
+          <Text style={styles.multBadgeText}>
+            {authoritative ? "Server-verified score" : `×${multiplier.toFixed(2)} multiplier applied`}
+          </Text>
         </Animated.View>
 
         {progression && progression.xp_gained > 0 && (
