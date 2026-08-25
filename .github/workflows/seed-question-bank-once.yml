@@ -1,0 +1,29 @@
+name: One-time Question Bank Seed
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  seed:
+    if: contains(github.event.head_commit.message, '[seed-question-bank-v1]')
+    runs-on: ubuntu-latest
+    env:
+      MONGO_URL: ${{ secrets.MONGO_URL }}
+      DB_NAME: ${{ secrets.DB_NAME || 'deepcut_sports' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Check database configuration
+        run: |
+          if [ -z "$MONGO_URL" ]; then
+            echo "MONGO_URL repository secret is not configured."
+            exit 1
+          fi
+      - name: Install backend dependencies
+        run: pip install -r backend/requirements.txt
+      - name: Import DeepCut question seed
+        run: python backend/seed_question_bank_v1.py --apply
