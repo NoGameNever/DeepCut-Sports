@@ -181,7 +181,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     textAlign: "center",
   },
-  card: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.xl, padding: spacing.lg, gap: spacing.md },
+  card: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.md },
   modeRow: { flexDirection: "row", backgroundColor: colors.surfaceTertiary, borderRadius: radius.md, padding: 4 },
   modeBtn: { flex: 1, height: 40, alignItems: "center", justifyContent: "center", borderRadius: radius.sm },
   modeBtnActive: { backgroundColor: colors.surfaceInverse },
