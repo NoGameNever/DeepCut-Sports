@@ -37,6 +37,7 @@ if not _EMERGENT_LLM_AVAILABLE:
     UserMessage = None
     EMERGENT_LLM_KEY = None
 
+import auth_native
 import question_bank
 
 
@@ -266,7 +267,12 @@ async def answer_quiz_session(
         },
         "$push": {"answers": answer_detail},
     }
-    await db.quiz_sessions.update_one({"id": session_id, "current_index": index}, update)
+    write = await db.quiz_sessions.update_one(
+        {"id": session_id, "user_id": user["user_id"], "status": "active", "current_index": index},
+        update,
+    )
+    if write.modified_count != 1:
+        raise HTTPException(status_code=409, detail="Answer was already submitted")
 
     progression = None
     updated_user = None
@@ -359,6 +365,13 @@ async def start_lobby(lobby_id: str, authorization: Optional[str] = Header(None)
 
 
 _admin_router = APIRouter(prefix="/api")
+auth_native.register_routes(
+    _admin_router,
+    db=db,
+    get_current_user=get_current_user,
+    ensure_username=_ensure_username,
+    user_out=_user_out,
+)
 question_bank.register_routes(
     _admin_router,
     db=db,
@@ -383,5 +396,6 @@ async def health_check():
 @app.on_event("startup")
 async def question_bank_startup():
     await question_bank.ensure_indexes(db)
+    await auth_native.ensure_indexes(db)
     await db.quiz_sessions.create_index("id", unique=True)
     await db.quiz_sessions.create_index("expires_at", expireAfterSeconds=0)
