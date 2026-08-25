@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInDown, ZoomIn } from "react-native-reanimated";
 import { api } from "@/src/api/client";
+import { BETA_MODE } from "@/src/config/beta";
 import { useAuth } from "@/src/context/AuthContext";
 import { ProgressionModal } from "@/src/components/ProgressionModal";
 import { Sticker } from "@/src/components/Sticker";
@@ -144,14 +145,14 @@ export default function Results() {
           radius={radius.lg}
           style={{ flex: 1 }}
           contentStyle={styles.btn}
-          testID="results-leaderboard-button"
-          onPress={() => router.replace("/(tabs)/leaderboard")}
+          testID={BETA_MODE ? "results-feedback-button" : "results-leaderboard-button"}
+          onPress={() => router.replace(BETA_MODE ? "/beta-feedback" : "/(tabs)/leaderboard")}
         >
-          <Ionicons name="trophy" size={20} color={colors.ink} />
-          <Text style={styles.btnText}>Ranks</Text>
+          <Ionicons name={BETA_MODE ? "chatbubble-ellipses" : "trophy"} size={20} color={colors.ink} />
+          <Text style={styles.btnText}>{BETA_MODE ? "Feedback" : "Ranks"}</Text>
         </Sticker>
       </View>
-      <Pressable testID="results-home-button" onPress={() => router.replace("/(tabs)")} style={styles.homeLink}>
+      <Pressable testID="results-home-button" onPress={() => router.replace(BETA_MODE ? "/beta" : "/(tabs)")} style={styles.homeLink}>
         <Text style={styles.homeText}>Back to Home</Text>
       </Pressable>
 
