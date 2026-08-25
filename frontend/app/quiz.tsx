@@ -15,12 +15,37 @@ import { setPendingProgression } from "@/src/state/progressionEvent";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
 const OPTION_FILLS = ["#FF9F1C", "#2EC4B6", "#9B5DE5", "#00B8FF"];
-
 const BASE_POINTS = 100;
 
-type Q = {
-  id: string; question: string; options: string[]; correct_index: number;
-  difficulty?: string; tags?: string[]; deep_cut?: boolean;
+type PublicQ = {
+  id: string;
+  question: string;
+  options: string[];
+  difficulty?: string;
+  tags?: string[];
+  deep_cut?: boolean;
+};
+
+type LobbyQ = PublicQ & { correct_index: number };
+
+type QuizStartResponse = {
+  session_id: string;
+  total: number;
+  question_index: number;
+  question: PublicQ;
+};
+
+type QuizAnswerResponse = {
+  correct: boolean;
+  correct_index: number;
+  score: number;
+  correct_count: number;
+  question_index: number;
+  total: number;
+  complete: boolean;
+  next_question?: PublicQ | null;
+  progression?: any;
+  user?: any;
 };
 
 export default function Quiz() {
@@ -42,10 +67,14 @@ export default function Quiz() {
   const perQuestionSeconds = isLobby ? (lobbyTimer > 0 ? lobbyTimer : 999) : timerOption(cfgTimer).seconds;
   const multiplier = timerOption(cfgTimer).mult * eraOption(cfgEra).mult;
 
-  const [questions, setQuestions] = useState<Q[] | null>(null);
+  const [questions, setQuestions] = useState<LobbyQ[] | null>(null);
+  const [singleQuestion, setSingleQuestion] = useState<PublicQ | null>(null);
+  const [singleSessionId, setSingleSessionId] = useState<string | null>(null);
+  const [singleTotal, setSingleTotal] = useState(0);
   const [error, setError] = useState(false);
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
+  const [revealedCorrectIndex, setRevealedCorrectIndex] = useState<number | null>(null);
   const [locked, setLocked] = useState(false);
   const [score, setScore] = useState(0);
   const [correctCount, setCorrectCount] = useState(0);
@@ -59,6 +88,15 @@ export default function Quiz() {
   const load = useCallback(async () => {
     setError(false);
     setQuestions(null);
+    setSingleQuestion(null);
+    setSingleSessionId(null);
+    setSingleTotal(0);
+    setCurrent(0);
+    setScore(0);
+    setCorrectCount(0);
+    setSelected(null);
+    setRevealedCorrectIndex(null);
+    setLocked(false);
     answersRef.current = [];
     try {
       if (lobbyId) {
@@ -68,22 +106,24 @@ export default function Quiz() {
         setSecondsLeft(secs > 0 ? secs : 999);
         setQuestions(g.questions);
       } else {
-        const qs = await api.generateQuiz({
+        const started: QuizStartResponse = await api.startQuizSession({
           sports: sports ? sports.split(",") : [sport],
           difficulty,
           era,
           count: parseInt(count || "7", 10) || 7,
         });
-        setQuestions(qs);
+        setSingleSessionId(started.session_id);
+        setSingleTotal(started.total);
+        setSingleQuestion(started.question);
+        setSecondsLeft(timerOption(cfgTimer).seconds);
       }
     } catch {
       setError(true);
     }
-  }, [sport, difficulty, era, lobbyId, sports, count]);
+  }, [sport, difficulty, era, lobbyId, sports, count, cfgTimer]);
 
   useEffect(() => { load(); }, [load]);
 
-  // live standings polling (multiplayer only)
   useEffect(() => {
     if (!lobbyId || !questions) return;
     let alive = true;
@@ -98,7 +138,6 @@ export default function Quiz() {
     (curScore: number, questionIndex: number) => {
       if (!lobbyId) return;
       api.lobbyProgress(lobbyId, { score: curScore, question_index: questionIndex }).catch(() => {});
-      // optimistic local update so my chip moves instantly
       setLivePlayers((prev) => {
         const next = prev.map((p) => (p.user_id === user?.user_id ? { ...p, score: curScore } : p));
         next.sort((a, b) => b.score - a.score);
@@ -108,52 +147,59 @@ export default function Quiz() {
     [lobbyId, user?.user_id]
   );
 
-  const finish = useCallback(
-    (finalScore: number, finalCorrect: number, total: number) => {
+  const finishSinglePlayer = useCallback(
+    (finalScore: number, finalCorrect: number, total: number, progression?: any) => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      if (lobbyId) {
-        api
-          .submitLobbyScore(lobbyId, { score: finalScore, correct: finalCorrect, total, answers: answersRef.current })
-          .then((res) => { if (res?.progression) setPendingProgression(res.progression); })
-          .catch(() => {})
-          .finally(() => router.replace(`/lobby/${lobbyId}`));
-        return;
-      }
+      if (progression) setPendingProgression(progression);
       router.replace({
         pathname: "/results",
         params: {
           sport,
           sports: sports || sport,
-          count: count || "7",
+          count: count || String(total),
           difficulty,
           timer,
           era,
           score: String(finalScore),
           correct: String(finalCorrect),
           total: String(total),
-          answers: JSON.stringify(answersRef.current),
+          serverAuthoritative: "1",
         },
       });
     },
-    [router, sport, difficulty, timer, era, lobbyId, sports, count]
+    [router, sport, sports, count, difficulty, timer, era]
   );
 
-  const advance = useCallback(
+  const finishLobby = useCallback(
+    (finalScore: number, finalCorrect: number, total: number) => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      if (!lobbyId) return;
+      api
+        .submitLobbyScore(lobbyId, { score: finalScore, correct: finalCorrect, total, answers: answersRef.current })
+        .then((res) => { if (res?.progression) setPendingProgression(res.progression); })
+        .catch(() => {})
+        .finally(() => router.replace(`/lobby/${lobbyId}`));
+    },
+    [lobbyId, router]
+  );
+
+  const advanceLobby = useCallback(
     (curScore: number, curCorrect: number) => {
       if (!questions) return;
       if (current + 1 >= questions.length) {
-        finish(curScore, curCorrect, questions.length);
+        finishLobby(curScore, curCorrect, questions.length);
       } else {
         setCurrent((c) => c + 1);
         setSelected(null);
+        setRevealedCorrectIndex(null);
         setLocked(false);
         setSecondsLeft(perQuestionSeconds);
       }
     },
-    [questions, current, finish, perQuestionSeconds]
+    [questions, current, finishLobby, perQuestionSeconds]
   );
 
-  const handleAnswer = useCallback(
+  const handleLobbyAnswer = useCallback(
     (index: number | null) => {
       if (locked || !questions) return;
       setLocked(true);
@@ -162,7 +208,7 @@ export default function Quiz() {
       const isCorrect = index === q.correct_index;
       answersRef.current.push({
         correct: isCorrect,
-        difficulty: q.difficulty || (isLobby ? undefined : difficulty),
+        difficulty: q.difficulty || difficulty,
         tags: q.tags || [],
         deep_cut: !!q.deep_cut,
       });
@@ -172,36 +218,90 @@ export default function Quiz() {
       if (isCorrect) {
         newCorrect = correctCount + 1;
         newStreak = streak + 1;
-        if (isLobby && lobbySettings) {
+        if (lobbySettings) {
           let pts = BASE_POINTS;
           if (lobbySettings.speed_bonus_enabled && !noTimer) pts += secondsLeft * 5;
           if (lobbySettings.streak_bonus_enabled) pts += 25 * newStreak;
           if (lobbySettings.final_question_multiplier_enabled && current === questions.length - 1) pts *= 2;
           newScore = score + Math.round(pts);
-        } else {
-          newScore = score + Math.round((BASE_POINTS + secondsLeft * 10) * multiplier);
         }
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       } else {
         newStreak = 0;
-        if (isLobby && lobbySettings?.wrong_answer_penalty_enabled) newScore = Math.max(0, score - 50);
+        if (lobbySettings?.wrong_answer_penalty_enabled) newScore = Math.max(0, score - 50);
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
       setScore(newScore);
       setCorrectCount(newCorrect);
       setStreak(newStreak);
       setSelected(index);
+      setRevealedCorrectIndex(q.correct_index);
       reportProgress(newScore, current + 1);
-      setTimeout(() => advance(newScore, newCorrect), 1100);
+      setTimeout(() => advanceLobby(newScore, newCorrect), 1100);
     },
-    [locked, questions, current, score, correctCount, secondsLeft, advance, multiplier, streak, isLobby, lobbySettings, noTimer, reportProgress, difficulty]
+    [locked, questions, current, score, correctCount, secondsLeft, advanceLobby, streak, lobbySettings, noTimer, reportProgress, difficulty]
   );
 
-  // timer
+  const handleSingleAnswer = useCallback(
+    async (index: number | null) => {
+      if (locked || !singleSessionId || !singleQuestion) return;
+      setLocked(true);
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      setSelected(index);
+      try {
+        const result: QuizAnswerResponse = await api.answerQuizSession(singleSessionId, index);
+        setRevealedCorrectIndex(result.correct_index);
+        setScore(result.score);
+        setCorrectCount(result.correct_count);
+        answersRef.current.push({
+          correct: result.correct,
+          difficulty: singleQuestion.difficulty || difficulty,
+          tags: singleQuestion.tags || [],
+          deep_cut: !!singleQuestion.deep_cut,
+        });
+        Haptics.notificationAsync(
+          result.correct ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error
+        );
+
+        if (result.complete) {
+          setTimeout(
+            () => finishSinglePlayer(result.score, result.correct_count, result.total, result.progression),
+            1100
+          );
+          return;
+        }
+
+        setTimeout(() => {
+          setCurrent(result.question_index + 1);
+          setSingleQuestion(result.next_question || null);
+          setSelected(null);
+          setRevealedCorrectIndex(null);
+          setLocked(false);
+          setSecondsLeft(timerOption(cfgTimer).seconds);
+        }, 1100);
+      } catch {
+        setLocked(false);
+        toast.show?.("Couldn't submit answer", "error");
+      }
+    },
+    [locked, singleSessionId, singleQuestion, difficulty, finishSinglePlayer, cfgTimer, toast]
+  );
+
+  const handleAnswer = useCallback(
+    (index: number | null) => {
+      if (isLobby) handleLobbyAnswer(index);
+      else void handleSingleAnswer(index);
+    },
+    [isLobby, handleLobbyAnswer, handleSingleAnswer]
+  );
+
+  const totalQuestions = isLobby ? (questions?.length || 0) : singleTotal;
+  const activeQuestion: (PublicQ | LobbyQ) | null = isLobby ? (questions?.[current] || null) : singleQuestion;
+
   useEffect(() => {
-    if (!questions || locked) return;
+    if (!activeQuestion || locked || totalQuestions < 1) return;
     progress.value = 0;
-    progress.value = withTiming((current + 1) / questions.length, { duration: 300 });
+    progress.value = withTiming((current + 1) / totalQuestions, { duration: 300 });
     if (noTimer) return;
     intervalRef.current = setInterval(() => {
       setSecondsLeft((s) => {
@@ -217,8 +317,7 @@ export default function Quiz() {
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current, questions, locked]);
+  }, [current, activeQuestion, locked, totalQuestions, noTimer, handleAnswer, progress]);
 
   const progressStyle = useAnimatedStyle(() => ({ width: `${progress.value * 100}%` }));
 
@@ -237,7 +336,7 @@ export default function Quiz() {
     );
   }
 
-  if (!questions) {
+  if (!activeQuestion) {
     return (
       <View style={styles.centered} testID="quiz-loading">
         <ActivityIndicator size="large" color={colors.brandPrimary} />
@@ -246,172 +345,98 @@ export default function Quiz() {
     );
   }
 
-  const q = questions[current];
+  const q = activeQuestion;
   const urgent = secondsLeft <= 5;
+  const correctIndex = isLobby ? (q as LobbyQ).correct_index : revealedCorrectIndex;
 
   const optionFill = (i: number) => {
     if (!locked) return OPTION_FILLS[i % OPTION_FILLS.length];
-    if (i === q.correct_index) return colors.success;
+    if (correctIndex !== null && i === correctIndex) return colors.success;
     if (i === selected) return colors.error;
     return colors.surfaceTertiary;
   };
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.md }]} testID="quiz-screen">
-      <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} testID="quiz-quit" hitSlop={10} style={styles.quitBtn}>
-          <Ionicons name="close" size={22} color={colors.onSurface} />
+      <View style={styles.topRow}>
+        <Pressable onPress={() => router.back()} style={styles.iconBtn}>
+          <Ionicons name="close" size={24} color={colors.onSurface} />
         </Pressable>
-        <Text style={styles.qCounter}>{current + 1} / {questions.length}</Text>
-        <Sticker fill={colors.gold} radius={999} offset={3} contentStyle={styles.scorePill}>
-          <Ionicons name="star" size={13} color={colors.ink} />
-          <Text style={styles.scoreText} testID="quiz-score">{score}</Text>
-        </Sticker>
+        <View style={styles.progressTrack}>
+          <Animated.View style={[styles.progressBar, progressStyle]} />
+        </View>
+        <View style={[styles.timerPill, urgent && styles.timerUrgent]}>
+          <Ionicons name="time-outline" size={16} color={urgent ? colors.error : colors.onSurfaceSecondary} />
+          <Text style={[styles.timerText, urgent && styles.timerTextUrgent]}>{noTimer ? "∞" : secondsLeft}</Text>
+        </View>
+      </View>
+
+      <View style={styles.metaRow}>
+        <Text style={styles.metaText}>Q{current + 1}/{totalQuestions}</Text>
+        <Text style={styles.scoreText}>{score.toLocaleString()} pts</Text>
       </View>
 
       {isLobby && livePlayers.length > 0 && (
-        <View style={styles.liveBar} testID="quiz-live-bar">
-          {livePlayers.map((p, i) => {
-            const isMe = p.user_id === user?.user_id;
-            const isLeader = i === 0 && p.score > 0;
-            return (
-              <View
-                key={p.user_id}
-                style={[styles.livePlayer, isMe && styles.livePlayerMe]}
-                testID={`quiz-live-player-${i}`}
-              >
-                <View>
-                  <UserAvatar uri={p.picture} name={p.name} size={26} />
-                  {isLeader && (
-                    <Ionicons name="trophy" size={12} color={colors.gold} style={styles.liveCrown} />
-                  )}
-                </View>
-                <View>
-                  <Text style={[styles.liveName, isMe && { color: colors.brandPrimary }]} numberOfLines={1}>
-                    {isMe ? "You" : p.name}
-                  </Text>
-                  <Text style={[styles.liveScore, isLeader && { color: colors.gold }]}>
-                    {p.score}{p.finished ? " ✓" : ""}
-                  </Text>
-                </View>
-              </View>
-            );
-          })}
+        <View style={styles.liveRow}>
+          {livePlayers.slice(0, 4).map((p, i) => (
+            <View key={p.user_id || i} style={styles.liveChip}>
+              <UserAvatar user={p} size={24} />
+              <Text numberOfLines={1} style={styles.liveName}>{p.username || p.name || "Player"}</Text>
+              <Text style={styles.liveScore}>{p.score || 0}</Text>
+            </View>
+          ))}
         </View>
       )}
 
-      <View style={styles.timerWrap}>
-        {noTimer ? (
-          <View style={[styles.timerCircle, { backgroundColor: colors.brandSecondary }]}>
-            <Ionicons name="infinite" size={40} color={colors.ink} />
-          </View>
-        ) : (
-          <View style={[styles.timerCircle, { backgroundColor: urgent ? colors.error : colors.gold }]}>
-            <Text style={[styles.timerText, { color: urgent ? "#FFFFFF" : colors.ink }]} testID="quiz-timer">{secondsLeft}</Text>
-          </View>
-        )}
-        {streak > 1 && (
-          <View style={styles.streakPill} testID="quiz-streak">
-            <Ionicons name="flame" size={13} color={colors.warning} />
-            <Text style={styles.streakText}>{streak} streak</Text>
-          </View>
-        )}
-      </View>
-
-      <Animated.View key={q.id} entering={FadeIn.duration(300)} style={styles.questionWrap}>
-        <Text style={styles.question}>{q.question}</Text>
+      <Animated.View entering={FadeIn.duration(180)} style={styles.questionCard}>
+        <Sticker label={q.deep_cut ? "DEEP CUT" : difficulty?.toUpperCase()} />
+        <Text style={styles.questionText}>{q.question}</Text>
       </Animated.View>
 
-      <View style={styles.options}>
-        {q.options.map((opt, i) => (
-          <Sticker
-            key={i}
-            testID={`quiz-option-${i}`}
-            fill={optionFill(i)}
-            radius={radius.lg}
-            style={locked && i !== q.correct_index && i !== selected ? { opacity: 0.45 } : undefined}
-            contentStyle={styles.option}
+      <View style={styles.optionsWrap}>
+        {q.options.map((option, i) => (
+          <Pressable
+            key={`${q.id}-${i}`}
             disabled={locked}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              handleAnswer(i);
-            }}
+            onPress={() => handleAnswer(i)}
+            style={[styles.optionBtn, { backgroundColor: optionFill(i) }]}
+            testID={`quiz-option-${i}`}
           >
-            <Text
-              style={[
-                styles.optionText,
-                locked && i === selected && i !== q.correct_index && { color: "#FFFFFF" },
-              ]}
-            >
-              {opt}
-            </Text>
-            {locked && i === q.correct_index && <Ionicons name="checkmark-circle" size={24} color={colors.ink} />}
-            {locked && i === selected && i !== q.correct_index && <Ionicons name="close-circle" size={24} color="#FFFFFF" />}
-          </Sticker>
+            <Text style={styles.optionLetter}>{String.fromCharCode(65 + i)}</Text>
+            <Text style={styles.optionText}>{option}</Text>
+          </Pressable>
         ))}
-      </View>
-
-      <View style={styles.progressTrack}>
-        <Animated.View style={[styles.progressFill, progressStyle]} />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.surface, paddingHorizontal: spacing.lg },
-  centered: { flex: 1, backgroundColor: colors.surface, alignItems: "center", justifyContent: "center", gap: spacing.md, padding: spacing.xl },
-  centerText: { color: colors.onSurfaceSecondary, fontFamily: fonts.body, fontSize: fontSize.lg, textAlign: "center" },
-  retryBtn: { backgroundColor: colors.brandPrimary, paddingVertical: spacing.md, paddingHorizontal: spacing.xxl, borderRadius: radius.md, marginTop: spacing.md },
-  retryText: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg },
-  quitText: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: fontSize.base },
-  topBar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
-  quitBtn: { width: 40, height: 40, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary, borderWidth: 2, borderColor: colors.ink, alignItems: "center", justifyContent: "center" },
-  qCounter: { color: colors.onSurface, fontFamily: fonts.cartoon, fontSize: 18, letterSpacing: 1 },
-  scorePill: { flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: spacing.xs, paddingHorizontal: spacing.md },
-  scoreText: { color: colors.ink, fontFamily: fonts.displayBold, fontSize: fontSize.lg },
-  liveBar: {
-    flexDirection: "row",
-    gap: spacing.sm,
-    marginTop: spacing.md,
-    backgroundColor: colors.surfaceSecondary,
-    borderWidth: 2,
-    borderColor: colors.ink,
-    borderRadius: radius.md,
-    padding: spacing.sm,
-  },
-  livePlayer: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: spacing.sm,
-    paddingVertical: 4,
-    paddingHorizontal: spacing.sm,
-    borderRadius: radius.sm,
-    borderWidth: 1,
-    borderColor: "transparent",
-  },
-  livePlayerMe: { borderColor: colors.brandPrimary, backgroundColor: colors.surfaceTertiary },
-  liveCrown: { position: "absolute", top: -7, right: -4 },
-  liveName: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: 11, maxWidth: 64 },
-  liveScore: { color: colors.onSurface, fontFamily: fonts.displayBold, fontSize: fontSize.sm },
-  timerWrap: { alignItems: "center", marginTop: spacing.xl },
-  streakPill: { flexDirection: "row", alignItems: "center", gap: 4, marginTop: spacing.sm, backgroundColor: colors.surfaceTertiary, borderWidth: 2, borderColor: colors.ink, paddingVertical: 4, paddingHorizontal: spacing.md, borderRadius: radius.pill },
-  streakText: { color: colors.warning, fontFamily: fonts.cartoon, fontSize: 14, letterSpacing: 0.5 },
-  timerCircle: { width: 96, height: 96, borderRadius: 48, borderWidth: 5, borderColor: colors.ink, alignItems: "center", justifyContent: "center" },
-  timerText: { fontFamily: fonts.displayBold, fontSize: 46 },
-  questionWrap: { marginTop: spacing.xl, minHeight: 90, justifyContent: "center" },
-  question: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize["2xl"], lineHeight: 32, textAlign: "center" },
-  options: { flex: 1, gap: spacing.md, marginTop: spacing.lg },
-  option: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingVertical: spacing.md,
-    paddingHorizontal: spacing.lg,
-    minHeight: 58,
-  },
-  optionText: { color: colors.ink, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg, flex: 1 },
-  progressTrack: { height: 10, backgroundColor: colors.surfaceTertiary, borderWidth: 2, borderColor: colors.ink, borderRadius: 5, marginBottom: spacing.lg, overflow: "hidden" },
-  progressFill: { height: "100%", backgroundColor: colors.brandPrimary },
+  container: { flex: 1, backgroundColor: colors.background, paddingHorizontal: spacing.lg },
+  centered: { flex: 1, backgroundColor: colors.background, alignItems: "center", justifyContent: "center", padding: spacing.xl },
+  centerText: { color: colors.onSurface, fontFamily: fonts.bold, fontSize: fontSize.lg, marginTop: spacing.md, textAlign: "center" },
+  retryBtn: { marginTop: spacing.lg, backgroundColor: colors.brandPrimary, paddingHorizontal: spacing.xl, paddingVertical: spacing.md, borderRadius: radius.lg },
+  retryText: { color: "#fff", fontFamily: fonts.bold },
+  quitText: { color: colors.onSurfaceSecondary, fontFamily: fonts.semibold },
+  topRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
+  iconBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20, backgroundColor: colors.surfaceSecondary },
+  progressTrack: { flex: 1, height: 10, borderRadius: 999, backgroundColor: colors.surfaceTertiary, overflow: "hidden" },
+  progressBar: { height: "100%", backgroundColor: colors.brandPrimary, borderRadius: 999 },
+  timerPill: { minWidth: 58, height: 40, borderRadius: 20, backgroundColor: colors.surfaceSecondary, flexDirection: "row", gap: 5, alignItems: "center", justifyContent: "center" },
+  timerUrgent: { backgroundColor: colors.surfaceTertiary },
+  timerText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bold },
+  timerTextUrgent: { color: colors.error },
+  metaRow: { marginTop: spacing.md, flexDirection: "row", justifyContent: "space-between" },
+  metaText: { color: colors.onSurfaceSecondary, fontFamily: fonts.semibold },
+  scoreText: { color: colors.brandPrimary, fontFamily: fonts.bold },
+  liveRow: { marginTop: spacing.md, flexDirection: "row", gap: spacing.sm, flexWrap: "wrap" },
+  liveChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, paddingVertical: 6, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary, maxWidth: "48%" },
+  liveName: { color: colors.onSurface, fontFamily: fonts.semibold, maxWidth: 90 },
+  liveScore: { color: colors.brandPrimary, fontFamily: fonts.bold },
+  questionCard: { marginTop: spacing.xl, backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.xl, minHeight: 180, justifyContent: "center" },
+  questionText: { color: colors.onSurface, fontFamily: fonts.bold, fontSize: fontSize.xl, lineHeight: 32, marginTop: spacing.md },
+  optionsWrap: { marginTop: spacing.xl, gap: spacing.md },
+  optionBtn: { minHeight: 72, borderRadius: radius.xl, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.md },
+  optionLetter: { color: "#fff", fontFamily: fonts.bold, fontSize: fontSize.lg, width: 24 },
+  optionText: { color: "#fff", fontFamily: fonts.bold, fontSize: fontSize.md, flex: 1 },
 });
