@@ -301,7 +301,7 @@ export default function Quiz() {
     progress.value = withTiming((current + 1) / totalQuestions, { duration: 300 });
     if (noTimer) return;
     intervalRef.current = setInterval(() => {
-      setSecondsLeft((s) => {
+      setSecondsLeft((s: number) => {
         if (s <= 1) {
           if (intervalRef.current) clearInterval(intervalRef.current);
           handleAnswer(null);
@@ -377,7 +377,7 @@ export default function Quiz() {
         <View style={styles.liveRow}>
           {livePlayers.slice(0, 4).map((p, i) => (
             <View key={p.user_id || i} style={styles.liveChip}>
-              <UserAvatar user={p} size={24} />
+              <UserAvatar uri={p.picture || p.avatar} name={p.username || p.name} size={24} />
               <Text numberOfLines={1} style={styles.liveName}>{p.username || p.name || "Player"}</Text>
               <Text style={styles.liveScore}>{p.score || 0}</Text>
             </View>
