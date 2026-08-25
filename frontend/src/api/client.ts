@@ -38,6 +38,64 @@ export type AuthResponse = {
   user: any;
 };
 
+export type QuestionBankSummary = {
+  total: number;
+  statuses: Record<string, number>;
+  verification: Record<string, number>;
+  open_reports: number;
+};
+
+export type AdminQuestion = {
+  id: string;
+  sport: string;
+  category?: string;
+  subcategory?: string;
+  difficulty: string;
+  question: string;
+  correct_answer: string;
+  incorrect_answers: string[];
+  explanation?: string;
+  source?: string;
+  source_url?: string | null;
+  era?: string | null;
+  league?: string | null;
+  season?: string | null;
+  teams?: string[];
+  players?: string[];
+  tags?: string[];
+  factual_confidence?: number | null;
+  verification_status?: string;
+  status: string;
+  answer_count?: number;
+  correct_count?: number;
+  report_count?: number;
+  campaign_id?: string | null;
+  review_note?: string | null;
+};
+
+export type QuestionCampaign = {
+  id: string;
+  name: string;
+  sport: string;
+  target_count: number;
+  generated_count: number;
+  imported_count: number;
+  duplicate_count: number;
+  rejected_count: number;
+  status: string;
+  slices: Array<{
+    name: string;
+    count: number;
+    generated_count: number;
+    imported_count: number;
+    rejected_count: number;
+    difficulty: string;
+    subcategory?: string | null;
+    era?: string | null;
+    league?: string | null;
+  }>;
+};
+
 export const tokenStore = {
   get: () => storage.secureGet(TOKEN_KEY, ""),
   set: (t: string) => storage.secureSet(TOKEN_KEY, t),
@@ -69,6 +127,12 @@ async function request<T>(
     throw err;
   }
   return res.json();
+}
+
+function queryString(params: Record<string, string | number | undefined | null>) {
+  const entries = Object.entries(params).filter(([, value]) => value !== undefined && value !== null && value !== "");
+  if (!entries.length) return "";
+  return `?${entries.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value))}`).join("&")}`;
 }
 
 export const api = {
@@ -129,6 +193,11 @@ export const api = {
       method: "POST",
       body: { selected_index: selectedIndex },
     }),
+  reportQuestion: (questionId: string, payload: { reason: string; details?: string }) =>
+    request<{ reported: boolean; already_reported: boolean; report_count?: number }>(
+      `/questions/${encodeURIComponent(questionId)}/report`,
+      { method: "POST", body: payload }
+    ),
 
   leaderboard: (board = "global_alltime") => request<any>(`/leaderboard?board=${board}`),
   progression: () => request<any>("/progression"),
@@ -183,4 +252,53 @@ export const api = {
     request<any>(`/lobby-invites/${invite_id}/accept`, { method: "POST" }),
   declineLobbyInvite: (invite_id: string) =>
     request(`/lobby-invites/${invite_id}/decline`, { method: "POST" }),
+
+  // ----- Question Bank v2 admin -----
+  questionBankSummary: () => request<QuestionBankSummary>("/admin/v2/questions/summary"),
+  adminQuestions: (params: {
+    status?: string;
+    sport?: string;
+    difficulty?: string;
+    verification?: string;
+    campaign_id?: string;
+    q?: string;
+    limit?: number;
+    skip?: number;
+  } = {}) => request<{ items: AdminQuestion[]; total: number; limit: number; skip: number }>(
+    `/admin/v2/questions${queryString(params)}`
+  ),
+  patchAdminQuestion: (id: string, payload: Partial<AdminQuestion>) =>
+    request<AdminQuestion>(`/admin/v2/questions/${encodeURIComponent(id)}`, { method: "PATCH", body: payload }),
+  reviewAdminQuestion: (id: string, payload: { status: string; verification_status?: string; review_note?: string }) =>
+    request<{ id: string; status: string; verification_status: string }>(
+      `/admin/v2/questions/${encodeURIComponent(id)}/review`,
+      { method: "POST", body: payload }
+    ),
+  backfillQuestionMetadata: (dryRun = true) =>
+    request<any>("/admin/v2/questions/backfill-metadata", { method: "POST", body: { dry_run: dryRun } }),
+  createQuestionCampaign: (payload: {
+    name: string;
+    sport: string;
+    target_count?: number;
+    difficulty?: string;
+    subcategory?: string;
+    era?: string;
+    league?: string;
+    tags?: string[];
+    slices?: Array<{
+      name: string;
+      count: number;
+      difficulty?: string;
+      subcategory?: string;
+      era?: string;
+      league?: string;
+      tags?: string[];
+    }>;
+  }) => request<QuestionCampaign>("/admin/v2/question-campaigns", { method: "POST", body: payload }),
+  questionCampaigns: () => request<QuestionCampaign[]>("/admin/v2/question-campaigns"),
+  generateQuestionCampaignBatch: (id: string, batchSize = 25) =>
+    request<{ campaign: QuestionCampaign; batch: any }>(
+      `/admin/v2/question-campaigns/${encodeURIComponent(id)}/generate-next`,
+      { method: "POST", body: { batch_size: batchSize } }
+    ),
 };
