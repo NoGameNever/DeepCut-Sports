@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-native";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+
 import { api } from "@/src/api/client";
+import { Sticker } from "@/src/components/Sticker";
+import { StickerButton } from "@/src/components/StickerControls";
 import { useAuth } from "@/src/context/AuthContext";
 import { sportName } from "@/src/constants/sports";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
@@ -40,7 +43,7 @@ export default function JoinLobby() {
     }
   }, [token]);
 
-  useEffect(() => { validate(); }, [validate]);
+  useEffect(() => { void validate(); }, [validate]);
 
   const join = useCallback(async () => {
     if (joinedRef.current) return;
@@ -57,7 +60,7 @@ export default function JoinLobby() {
   }, [token, router]);
 
   useEffect(() => {
-    if (!loading && user && status === "ready") join();
+    if (!loading && user && status === "ready") void join();
   }, [loading, user, status, join]);
 
   const onSignIn = () => {
@@ -69,31 +72,46 @@ export default function JoinLobby() {
     if (status === "joining") return <Loading label="Joining lobby…" />;
     if (status === "error") {
       return (
-        <View style={styles.card} testID="join-error">
+        <Sticker fill={colors.surfaceSecondary} radius={radius.lg} contentStyle={styles.card} testID="join-error">
           <Ionicons name="alert-circle-outline" size={44} color={colors.error} />
           <Text style={styles.cardTitle}>{message}</Text>
           <View style={styles.btnRow}>
-            <Pressable style={styles.secondaryBtn} onPress={validate} testID="join-retry">
-              <Text style={styles.secondaryText}>Retry</Text>
-            </Pressable>
-            <Pressable style={styles.primaryBtn} onPress={() => router.replace(user ? "/(tabs)" : "/login")} testID="join-home">
-              <Text style={styles.primaryText}>{user ? "Home" : "Sign In"}</Text>
-            </Pressable>
+            <StickerButton
+              label="Retry"
+              icon="refresh"
+              tone="dark"
+              style={styles.rowButton}
+              onPress={() => void validate()}
+              testID="join-retry"
+            />
+            <StickerButton
+              label={user ? "Home" : "Sign In"}
+              icon={user ? "home" : "log-in-outline"}
+              tone="brand"
+              style={styles.rowButton}
+              onPress={() => router.replace(user ? "/(tabs)" : "/login")}
+              testID="join-home"
+            />
           </View>
-        </View>
+        </Sticker>
       );
     }
     if (!user) {
       return (
-        <View style={styles.card} testID="join-signin">
+        <Sticker fill={colors.surfaceSecondary} radius={radius.lg} contentStyle={styles.card} testID="join-signin">
           <Text style={styles.invitedBy}>{info?.host_name} invited you</Text>
           <Text style={styles.cardTitle}>Join the {sportName(info?.sport)} lobby</Text>
           <Text style={styles.sub}>{info?.member_count}/{info?.max_players} players in</Text>
-          <Pressable style={styles.primaryBtnWide} onPress={onSignIn} testID="join-signin-button">
-            <Ionicons name="log-in-outline" size={18} color={colors.onBrandPrimary} />
-            <Text style={styles.primaryText}>Sign in & Join</Text>
-          </Pressable>
-        </View>
+          <StickerButton
+            label="Sign In & Join"
+            icon="log-in-outline"
+            tone="brand"
+            size="lg"
+            fullWidth
+            onPress={onSignIn}
+            testID="join-signin-button"
+          />
+        </Sticker>
       );
     }
     return <Loading label="Joining lobby…" />;
@@ -112,10 +130,10 @@ export default function JoinLobby() {
 
 function Loading({ label }: { label: string }) {
   return (
-    <View style={styles.card} testID="join-loading">
+    <Sticker fill={colors.surfaceSecondary} radius={radius.lg} contentStyle={styles.card} testID="join-loading">
       <ActivityIndicator size="large" color={colors.brandPrimary} />
       <Text style={styles.cardTitle}>{label}</Text>
-    </View>
+    </Sticker>
   );
 }
 
@@ -123,14 +141,10 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.surface },
   hero: { width: "100%", height: "60%" },
   content: { flex: 1, justifyContent: "flex-end", paddingHorizontal: spacing.xl },
-  card: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.xl, alignItems: "center", gap: spacing.md },
+  card: { padding: spacing.xl, alignItems: "center", gap: spacing.md },
   invitedBy: { color: colors.brandPrimary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.base, letterSpacing: 0.5 },
-  cardTitle: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize.xl, textAlign: "center" },
+  cardTitle: { color: colors.onSurface, fontFamily: fonts.cartoon, fontSize: fontSize.xl, textAlign: "center", letterSpacing: 0.5 },
   sub: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: fontSize.base },
-  btnRow: { flexDirection: "row", gap: spacing.md, marginTop: spacing.sm },
-  primaryBtn: { backgroundColor: colors.brandPrimary, height: 48, borderRadius: radius.md, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xl },
-  primaryBtnWide: { flexDirection: "row", gap: spacing.sm, backgroundColor: colors.brandPrimary, height: 52, borderRadius: radius.md, alignItems: "center", justifyContent: "center", alignSelf: "stretch", marginTop: spacing.sm },
-  primaryText: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg },
-  secondaryBtn: { backgroundColor: colors.surfaceTertiary, height: 48, borderRadius: radius.md, alignItems: "center", justifyContent: "center", paddingHorizontal: spacing.xl },
-  secondaryText: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize.lg },
+  btnRow: { alignSelf: "stretch", flexDirection: "row", gap: spacing.md, marginTop: spacing.sm },
+  rowButton: { flex: 1 },
 });
