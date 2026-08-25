@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInUp } from "react-native-reanimated";
@@ -11,6 +11,7 @@ import { useToast } from "@/src/components/Toast";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
 export default function Login() {
+  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
   const { user, signIn, register, signingIn, loading } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -22,8 +23,10 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
-    if (user) router.replace("/(tabs)");
-  }, [user, router]);
+    if (!user) return;
+    const destination = returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/(tabs)";
+    router.replace(destination as any);
+  }, [user, router, returnTo]);
 
   const onSubmit = async () => {
     const cleanEmail = email.trim();
