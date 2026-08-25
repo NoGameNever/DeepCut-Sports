@@ -6,7 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { api } from "@/src/api/client";
-import { sportName, timerOption, eraOption } from "@/src/constants/sports";
+import { sportName, timerOption } from "@/src/constants/sports";
 import { useToast } from "@/src/components/Toast";
 import { UserAvatar } from "@/src/components/UserAvatar";
 import { Sticker } from "@/src/components/Sticker";
@@ -60,12 +60,10 @@ export default function Quiz() {
   const isLobby = !!lobbyId;
   const [lobbySettings, setLobbySettings] = useState<any>(null);
   const [streak, setStreak] = useState(0);
-  const [cfgTimer, setCfgTimer] = useState(timer || "standard");
-  const [cfgEra, setCfgEra] = useState(era || "modern");
+  const [cfgTimer] = useState(timer || "standard");
   const lobbyTimer = lobbySettings?.timer_seconds ?? 15;
   const noTimer = isLobby && lobbyTimer === 0;
   const perQuestionSeconds = isLobby ? (lobbyTimer > 0 ? lobbyTimer : 999) : timerOption(cfgTimer).seconds;
-  const multiplier = timerOption(cfgTimer).mult * eraOption(cfgEra).mult;
 
   const [questions, setQuestions] = useState<LobbyQ[] | null>(null);
   const [singleQuestion, setSingleQuestion] = useState<PublicQ | null>(null);
