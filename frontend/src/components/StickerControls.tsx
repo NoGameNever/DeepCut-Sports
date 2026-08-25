@@ -1,13 +1,6 @@
-import { ReactNode } from "react";
-import {
-  ActivityIndicator,
-  StyleProp,
-  StyleSheet,
-  Text,
-  TextStyle,
-  View,
-  ViewStyle,
-} from "react-native";
+import type { ReactNode } from "react";
+import { ActivityIndicator, StyleSheet, Text, View } from "react-native";
+import type { StyleProp, TextStyle, ViewStyle } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 
 import { Sticker } from "@/src/components/Sticker";
