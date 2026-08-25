@@ -156,7 +156,7 @@ export const api = {
   friendRequests: () => request<any[]>("/friends/requests"),
 
   // ----- Lobbies -----
-  createLobby: (payload: { sport: string; difficulty: string; timer: string; era: string }) =>
+  createLobby: (payload: Partial<{ sport: string; difficulty: string; timer: string; era: string }> = {}) =>
     request<any>("/lobbies", { method: "POST", body: payload }),
   getLobby: (id: string) => request<any>(`/lobbies/${id}`),
   getLobbySettings: (id: string) => request<any>(`/lobbies/${id}/settings`),
