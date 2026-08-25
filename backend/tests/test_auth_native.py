@@ -34,3 +34,21 @@ def test_email_query_escapes_regex_characters():
     query = auth_native._email_query("fan+test@example.com")
     regex = query["$or"][1]["email"]["$regex"]
     assert regex == r"^fan\+test@example\.com$"
+
+
+def test_beta_access_is_open_when_no_code_is_configured():
+    auth_native._require_beta_access(None, configured="")
+
+
+def test_beta_access_accepts_trimmed_case_insensitive_code():
+    auth_native._require_beta_access("  deepcut-alpha  ", configured="DEEPCUT-ALPHA")
+
+
+def test_beta_access_rejects_missing_or_wrong_code():
+    with pytest.raises(HTTPException) as missing:
+        auth_native._require_beta_access(None, configured="DEEPCUT-ALPHA")
+    assert missing.value.status_code == 403
+
+    with pytest.raises(HTTPException) as wrong:
+        auth_native._require_beta_access("WRONG", configured="DEEPCUT-ALPHA")
+    assert wrong.value.status_code == 403
