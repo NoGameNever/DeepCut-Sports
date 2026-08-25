@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "@/src/context/AuthContext";
+import { BETA_MODE } from "@/src/config/beta";
 import { colors } from "@/src/theme/theme";
 
 export default function Index() {
@@ -10,8 +11,8 @@ export default function Index() {
 
   useEffect(() => {
     if (loading) return;
-    if (user) router.replace("/(tabs)");
-    else router.replace("/login");
+    if (user) router.replace(BETA_MODE ? "/beta" : "/(tabs)");
+    else router.replace(BETA_MODE ? "/beta-login" : "/login");
   }, [user, loading, router]);
 
   return (

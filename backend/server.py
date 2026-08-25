@@ -50,6 +50,7 @@ if not _EMERGENT_LLM_AVAILABLE:
     EMERGENT_LLM_KEY = None
 
 import auth_native
+import beta_release
 import question_bank
 import question_bank_v2
 
@@ -64,6 +65,7 @@ openai_client = (
 
 QUIZ_SESSION_TTL = timedelta(hours=2)
 BASE_QUIZ_POINTS = 100
+QUIZ_DIFFICULTIES = set(DIFFICULTIES) | {"mixed"}
 
 
 class PublicQuizQuestion(BaseModel):
@@ -152,6 +154,23 @@ def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
+async def _load_quiz_questions(*, body: QuizRequest, sport_keys: list[str], user_id: str) -> list[dict]:
+    count = max(3, min(body.count, 30))
+    if body.difficulty == "mixed":
+        return await beta_release.fetch_mixed_questions(
+            db,
+            sports=sport_keys,
+            count=count,
+            user_id=user_id,
+        )
+    query = question_bank.QuestionBankQuery(
+        sports=sport_keys,
+        difficulty=body.difficulty,
+        count=count,
+    )
+    return await question_bank.fetch_approved_questions(db, query, user_id=user_id)
+
+
 _configure_cors()
 _remove_route("/api/quiz/generate", "POST")
 _remove_route("/api/lobbies/{lobby_id}/start", "POST")
@@ -164,17 +183,11 @@ async def generate_quiz(body: QuizRequest, authorization: Optional[str] = Header
     if (
         not sport_keys
         or any(question_bank.canonical_sport(s) not in set(question_bank.CATEGORY_ALIASES.values()) for s in sport_keys)
-        or body.difficulty not in DIFFICULTIES
+        or body.difficulty not in QUIZ_DIFFICULTIES
         or body.era not in ERAS
     ):
         raise HTTPException(status_code=400, detail="Invalid sport, difficulty or era")
-
-    query = question_bank.QuestionBankQuery(
-        sports=sport_keys,
-        difficulty=body.difficulty,
-        count=max(3, min(body.count, 30)),
-    )
-    return await question_bank.fetch_approved_questions(db, query, user_id=user["user_id"])
+    return await _load_quiz_questions(body=body, sport_keys=sport_keys, user_id=user["user_id"])
 
 
 @app.post("/api/v2/quiz/start", response_model=QuizStartResponse)
@@ -190,17 +203,12 @@ async def start_quiz_session(body: QuizRequest, authorization: Optional[str] = H
     if (
         not sport_keys
         or any(question_bank.canonical_sport(s) not in valid_sports for s in sport_keys)
-        or body.difficulty not in DIFFICULTIES
+        or body.difficulty not in QUIZ_DIFFICULTIES
         or body.era not in ERAS
     ):
         raise HTTPException(status_code=400, detail="Invalid sport, difficulty or era")
 
-    query = question_bank.QuestionBankQuery(
-        sports=sport_keys,
-        difficulty=body.difficulty,
-        count=max(3, min(body.count, 30)),
-    )
-    questions = await question_bank.fetch_approved_questions(db, query, user_id=user["user_id"])
+    questions = await _load_quiz_questions(body=body, sport_keys=sport_keys, user_id=user["user_id"])
     if len(questions) < 3:
         raise HTTPException(status_code=503, detail="Not enough approved questions matched your filters")
 
@@ -309,11 +317,14 @@ async def answer_quiz_session(
             },
         )
         progression_answers = [*(session.get("answers") or []), answer_detail]
+        fallback_difficulty = session.get("difficulty") or "medium"
+        if fallback_difficulty == "mixed":
+            fallback_difficulty = "medium"
         progression = await prog.process_quiz_answers(
             db,
             user,
             progression_answers,
-            fallback_difficulty=session.get("difficulty") or "medium",
+            fallback_difficulty=fallback_difficulty,
         )
         updated = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
         updated_user = _user_out(updated)
@@ -387,6 +398,11 @@ auth_native.register_routes(
     ensure_username=_ensure_username,
     user_out=_user_out,
 )
+beta_release.register_routes(
+    _admin_router,
+    db=db,
+    get_current_user=get_current_user,
+)
 question_bank.register_routes(
     _admin_router,
     db=db,
@@ -420,6 +436,7 @@ async def health_check():
 async def question_bank_startup():
     await question_bank.ensure_indexes(db)
     await question_bank_v2.ensure_indexes(db)
+    await beta_release.ensure_indexes(db)
     await auth_native.ensure_indexes(db)
     await db.quiz_sessions.create_index("id", unique=True)
     await db.quiz_sessions.create_index("expires_at", expireAfterSeconds=0)
