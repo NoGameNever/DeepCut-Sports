@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feature/adalo-replacement-foundation
+      - feature/question-bank-v2
   pull_request:
     branches:
       - main
@@ -23,8 +24,8 @@ jobs:
         run: pip install -r backend/requirements.txt pytest
       - name: Compile backend
         run: python -m compileall backend
-      - name: Auth unit tests
-        run: pytest backend/tests/test_auth_native.py -q
+      - name: Backend unit tests
+        run: pytest backend/tests/test_auth_native.py backend/tests/test_question_bank_v2.py -q
 
   frontend:
     runs-on: ubuntu-latest
