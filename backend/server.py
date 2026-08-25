@@ -32,6 +32,18 @@ except ModuleNotFoundError as exc:
 
     from server_legacy import *  # noqa: F401,F403
 
+# Star imports intentionally omit names beginning with an underscore. The
+# migration layer still reuses a small set of private helpers from the legacy
+# module, so bind them explicitly instead of relying on import * behavior.
+import server_legacy as _legacy
+
+_ensure_username = _legacy._ensure_username
+_user_out = _legacy._user_out
+_require_member = _legacy._require_member
+_member_count = _legacy._member_count
+_validate_settings = _legacy._validate_settings
+_now = _legacy._now
+
 if not _EMERGENT_LLM_AVAILABLE:
     LlmChat = None
     UserMessage = None

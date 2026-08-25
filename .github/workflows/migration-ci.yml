@@ -6,6 +6,7 @@ on:
       - feature/adalo-replacement-foundation
       - feature/question-bank-v2
       - feature/question-bank-seed-v1
+      - hotfix/render-private-legacy-imports
   pull_request:
     branches:
       - main
@@ -25,6 +26,8 @@ jobs:
         run: pip install -r backend/requirements.txt pytest
       - name: Compile backend
         run: python -m compileall backend
+      - name: Import FastAPI app
+        run: python -c "import sys; sys.path.insert(0, 'backend'); import server; assert server.app is not None"
       - name: Backend unit tests
         run: pytest backend/tests/test_auth_native.py backend/tests/test_question_bank_v2.py -q
       - name: Validate question-bank seed
