@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { ScrollView, StyleSheet, Text, View } from "react-native";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -36,6 +36,10 @@ export default function BetaHome() {
       void refresh();
     }, [refresh])
   );
+
+  useEffect(() => {
+    if (user?.full_app_access) router.replace("/(tabs)");
+  }, [user?.full_app_access, router]);
 
   const startMatch = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
