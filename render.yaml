@@ -28,6 +28,8 @@ services:
         sync: false
       - key: BETA_COHORT
         value: closed_alpha_1
+      - key: FULL_APP_BOOTSTRAP_EMAILS
+        sync: false
 
   - type: web
     name: deepcut-sports-web
