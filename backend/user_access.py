@@ -56,6 +56,20 @@ def email_query(email: str) -> dict[str, Any]:
     }
 
 
+def missing_access_user_query(email: str) -> dict[str, Any]:
+    return {
+        "$and": [
+            email_query(email),
+            {
+                "$or": [
+                    {"full_app_access": {"$exists": False}},
+                    {"full_app_access": None},
+                ]
+            },
+        ]
+    }
+
+
 def is_admin_user(user: dict[str, Any]) -> bool:
     admin_emails = parse_email_set(os.environ.get("ADMIN_EMAILS", ""))
     admin_ids = parse_email_set(os.environ.get("ADMIN_USER_IDS", ""))
@@ -127,13 +141,7 @@ async def ensure_bootstrap_access(db) -> None:
         grant = await db[ACCESS_COLLECTION].find_one({"email": email}, {"_id": 0, "enabled": 1})
         if grant and grant.get("enabled"):
             await db.users.update_many(
-                {
-                    **email_query(email),
-                    "$or": [
-                        {"full_app_access": {"$exists": False}},
-                        {"full_app_access": None},
-                    ],
-                },
+                missing_access_user_query(email),
                 {
                     "$set": {
                         "full_app_access": True,
