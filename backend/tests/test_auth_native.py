@@ -52,3 +52,32 @@ def test_beta_access_rejects_missing_or_wrong_code():
     with pytest.raises(HTTPException) as wrong:
         auth_native._require_beta_access("WRONG", configured="DEEPCUT-ALPHA")
     assert wrong.value.status_code == 403
+
+
+def test_full_app_allowlist_is_case_insensitive_and_trimmed():
+    user = {"email": "  Fan@Test.Example  "}
+    configured = "other@example.com, FAN@test.example"
+    assert auth_native.has_full_app_access(user, configured=configured)
+
+
+def test_full_app_allowlist_supports_common_separators():
+    configured = "one@example.com;two@example.com\nthree@example.com"
+    assert auth_native._parse_email_allowlist(configured) == {
+        "one@example.com",
+        "two@example.com",
+        "three@example.com",
+    }
+
+
+def test_full_app_allowlist_denies_unlisted_email():
+    assert not auth_native.has_full_app_access(
+        "not-invited@example.com",
+        configured="invited@example.com",
+    )
+
+
+def test_persisted_full_app_access_flag_is_honored():
+    assert auth_native.has_full_app_access(
+        {"email": "not-listed@example.com", "full_app_access": True},
+        configured="",
+    )
