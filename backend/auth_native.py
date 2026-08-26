@@ -188,6 +188,12 @@ def register_routes(
         token = await _issue_session(db, user_id)
         return {"session_token": token, "user": user_out(user)}
 
+    @router.get("/auth/access")
+    async def auth_access(authorization: str | None = Header(None)):
+        """Return rollout permissions without exposing the private allowlist."""
+        user = await get_current_user(authorization)
+        return {"full_app_access": has_full_app_access(user)}
+
     @router.post("/auth/login")
     async def login(body: LoginRequest):
         email = _email(str(body.email))
