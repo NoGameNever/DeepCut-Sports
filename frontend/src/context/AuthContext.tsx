@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { api, tokenStore } from "@/src/api/client";
+import { fetchRolloutAccess } from "@/src/api/access";
 
 type User = {
   user_id: string;
@@ -13,6 +14,7 @@ type User = {
   correct_answers: number;
   total_answers: number;
   best_sport?: string | null;
+  full_app_access?: boolean;
 };
 
 type AuthState = {
@@ -33,17 +35,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [signingIn, setSigningIn] = useState(false);
 
+  const attachRolloutAccess = useCallback(async (baseUser: User): Promise<User> => {
+    try {
+      const access = await fetchRolloutAccess();
+      return { ...baseUser, full_app_access: !!access.full_app_access };
+    } catch (error: any) {
+      if (error?.status === 401) throw error;
+      // Deny the expanded UI by default if the rollout check is temporarily unavailable.
+      return { ...baseUser, full_app_access: false };
+    }
+  }, []);
+
   const refresh = useCallback(async () => {
     try {
       const me = await api.me();
-      setUser(me);
+      setUser(await attachRolloutAccess(me));
     } catch (e: any) {
       if (e.status === 401) {
         await tokenStore.clear();
         setUser(null);
       }
     }
-  }, []);
+  }, [attachRolloutAccess]);
 
   useEffect(() => {
     (async () => {
@@ -63,11 +76,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const result = await api.login({ email: email.trim(), password });
       await tokenStore.set(result.session_token);
-      setUser(result.user);
+      setUser(await attachRolloutAccess(result.user));
     } finally {
       setSigningIn(false);
     }
-  }, []);
+  }, [attachRolloutAccess]);
 
   const register = useCallback(async (email: string, password: string, username?: string) => {
     setSigningIn(true);
@@ -78,11 +91,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         username: username?.trim() || undefined,
       });
       await tokenStore.set(result.session_token);
-      setUser(result.user);
+      setUser(await attachRolloutAccess(result.user));
     } finally {
       setSigningIn(false);
     }
-  }, []);
+  }, [attachRolloutAccess]);
 
   const signOut = useCallback(async () => {
     try {
