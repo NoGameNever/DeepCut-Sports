@@ -13,6 +13,8 @@ type User = {
   correct_answers: number;
   total_answers: number;
   best_sport?: string | null;
+  full_app_access?: boolean;
+  beta_cohort?: string | null;
 };
 
 type AuthState = {
