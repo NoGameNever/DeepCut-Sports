@@ -45,6 +45,37 @@ def _email(value: str) -> str:
     return value.strip().lower()
 
 
+def _parse_email_allowlist(value: str | None) -> set[str]:
+    """Normalize a comma, semicolon, or newline-delimited email allowlist."""
+    return {
+        _email(item)
+        for item in re.split(r"[,;\n]", str(value or ""))
+        if item.strip()
+    }
+
+
+def has_full_app_access(user_or_email: dict | str | None, configured: str | None = None) -> bool:
+    """Return whether an account should enter the unrestricted consumer app.
+
+    Production normally uses the private `FULL_APP_EMAILS` Render environment variable.
+    A persisted `full_app_access: true` user field is also honored for future admin tooling.
+    The allowlist is never returned to clients or stored on newly registered users.
+    """
+    if isinstance(user_or_email, dict):
+        if user_or_email.get("full_app_access") is True:
+            return True
+        email = user_or_email.get("email_normalized") or user_or_email.get("email") or ""
+    else:
+        email = str(user_or_email or "")
+
+    normalized = _email(email)
+    if not normalized:
+        return False
+
+    raw_allowlist = os.environ.get("FULL_APP_EMAILS", "") if configured is None else configured
+    return normalized in _parse_email_allowlist(raw_allowlist)
+
+
 def _email_query(email: str) -> dict:
     return {
         "$or": [
