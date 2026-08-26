@@ -11,8 +11,11 @@ export default function Index() {
 
   useEffect(() => {
     if (loading) return;
-    if (user) router.replace(BETA_MODE ? "/beta" : "/(tabs)");
-    else router.replace(BETA_MODE ? "/beta-login" : "/login");
+    if (user) {
+      router.replace(BETA_MODE && !user.full_app_access ? "/beta" : "/(tabs)");
+    } else {
+      router.replace(BETA_MODE ? "/beta-login" : "/login");
+    }
   }, [user, loading, router]);
 
   return (

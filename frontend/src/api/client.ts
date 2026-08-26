@@ -96,6 +96,45 @@ export type QuestionCampaign = {
   }>;
 };
 
+export type AdminAccessUser = {
+  user_id: string;
+  email: string;
+  username?: string | null;
+  name: string;
+  picture?: string | null;
+  full_app_access: boolean;
+  is_admin: boolean;
+  beta_cohort?: string | null;
+  registration_source?: string | null;
+  matches: number;
+  total_score: number;
+  created_at?: string | null;
+  last_seen?: string | null;
+  full_app_access_granted_at?: string | null;
+  full_app_access_revoked_at?: string | null;
+};
+
+export type PendingFullAppGrant = {
+  email: string;
+  full_app_access: true;
+  created_at?: string | null;
+  updated_at?: string | null;
+};
+
+export type AdminUserAccessResponse = {
+  items: AdminAccessUser[];
+  pending_grants: PendingFullAppGrant[];
+  total: number;
+  limit: number;
+  skip: number;
+  counts: {
+    users: number;
+    full_app: number;
+    beta_only: number;
+    pending: number;
+  };
+};
+
 export const tokenStore = {
   get: () => storage.secureGet(TOKEN_KEY, ""),
   set: (t: string) => storage.secureSet(TOKEN_KEY, t),
@@ -252,6 +291,21 @@ export const api = {
     request<any>(`/lobby-invites/${invite_id}/accept`, { method: "POST" }),
   declineLobbyInvite: (invite_id: string) =>
     request(`/lobby-invites/${invite_id}/decline`, { method: "POST" }),
+
+  // ----- Admin user access -----
+  adminUserAccess: (params: { q?: string; access?: "all" | "full" | "beta"; limit?: number; skip?: number } = {}) =>
+    request<AdminUserAccessResponse>(`/admin/user-access${queryString(params)}`),
+  setFullAppAccess: (email: string, fullAppAccess: boolean) =>
+    request<{
+      email: string;
+      full_app_access: boolean;
+      user_found: boolean;
+      user: AdminAccessUser | null;
+      admin_access_changed: false;
+    }>("/admin/user-access", {
+      method: "POST",
+      body: { email, full_app_access: fullAppAccess },
+    }),
 
   // ----- Question Bank v2 admin -----
   questionBankSummary: () => request<QuestionBankSummary>("/admin/v2/questions/summary"),

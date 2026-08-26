@@ -53,6 +53,24 @@ import auth_native
 import beta_release
 import question_bank
 import question_bank_v2
+import user_access
+
+
+# Add migration-era access flags to every auth/profile payload without changing
+# the large legacy module's response contract in place.
+_legacy_user_out = _user_out
+
+
+def _user_out(user: dict) -> dict:
+    output = _legacy_user_out(user)
+    output.update(user_access.public_access_fields(user))
+    return output
+
+
+# Legacy route functions resolve their module globals at request time, so point
+# them at the augmented serializer as well. This keeps /auth/me and /profile in
+# sync with native registration/login responses.
+_legacy._user_out = _user_out
 
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
@@ -419,6 +437,12 @@ question_bank_v2.register_routes(
     openai_model=OPENAI_MODEL,
     logger=logger,
 )
+user_access.register_routes(
+    _admin_router,
+    db=db,
+    get_current_user=get_current_user,
+    require_admin=question_bank.require_admin,
+)
 app.include_router(_admin_router)
 
 
@@ -438,5 +462,7 @@ async def question_bank_startup():
     await question_bank_v2.ensure_indexes(db)
     await beta_release.ensure_indexes(db)
     await auth_native.ensure_indexes(db)
+    await user_access.ensure_indexes(db)
+    await user_access.ensure_bootstrap_access(db)
     await db.quiz_sessions.create_index("id", unique=True)
     await db.quiz_sessions.create_index("expires_at", expireAfterSeconds=0)

@@ -38,7 +38,7 @@ export default function BetaLogin() {
   const [working, setWorking] = useState(false);
 
   useEffect(() => {
-    if (user) router.replace("/beta");
+    if (user) router.replace(user.full_app_access ? "/(tabs)" : "/beta");
   }, [user, router]);
 
   const submit = async () => {

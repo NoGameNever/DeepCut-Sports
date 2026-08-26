@@ -31,13 +31,14 @@ export default function Results() {
   }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { refresh } = useAuth();
+  const { refresh, user } = useAuth();
 
   const scoreN = parseInt(score || "0", 10);
   const correctN = parseInt(correct || "0", 10);
   const totalN = parseInt(total || "0", 10);
   const accuracy = totalN > 0 ? Math.round((correctN / totalN) * 100) : 0;
   const authoritative = serverAuthoritative === "1";
+  const restrictedBeta = BETA_MODE && !user?.full_app_access;
 
   const [rank, setRank] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(true);
@@ -145,14 +146,14 @@ export default function Results() {
           radius={radius.lg}
           style={{ flex: 1 }}
           contentStyle={styles.btn}
-          testID={BETA_MODE ? "results-feedback-button" : "results-leaderboard-button"}
-          onPress={() => router.replace(BETA_MODE ? "/beta-feedback" : "/(tabs)/leaderboard")}
+          testID={restrictedBeta ? "results-feedback-button" : "results-leaderboard-button"}
+          onPress={() => router.replace(restrictedBeta ? "/beta-feedback" : "/(tabs)/leaderboard")}
         >
-          <Ionicons name={BETA_MODE ? "chatbubble-ellipses" : "trophy"} size={20} color={colors.ink} />
-          <Text style={styles.btnText}>{BETA_MODE ? "Feedback" : "Ranks"}</Text>
+          <Ionicons name={restrictedBeta ? "chatbubble-ellipses" : "trophy"} size={20} color={colors.ink} />
+          <Text style={styles.btnText}>{restrictedBeta ? "Feedback" : "Ranks"}</Text>
         </Sticker>
       </View>
-      <Pressable testID="results-home-button" onPress={() => router.replace(BETA_MODE ? "/beta" : "/(tabs)")} style={styles.homeLink}>
+      <Pressable testID="results-home-button" onPress={() => router.replace(restrictedBeta ? "/beta" : "/(tabs)")} style={styles.homeLink}>
         <Text style={styles.homeText}>Back to Home</Text>
       </Pressable>
 

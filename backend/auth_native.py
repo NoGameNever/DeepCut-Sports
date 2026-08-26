@@ -15,6 +15,8 @@ import bcrypt
 from fastapi import APIRouter, Header, HTTPException
 from pydantic import BaseModel, EmailStr, Field
 
+import user_access
+
 SESSION_TTL = timedelta(days=30)
 USERNAME_RE = re.compile(r"^[a-zA-Z0-9_]{3,20}$")
 BETA_ACCESS_CODE = os.environ.get("BETA_ACCESS_CODE", "").strip()
@@ -123,6 +125,7 @@ def register_routes(
         if existing:
             raise HTTPException(status_code=409, detail="An account already exists for this email")
 
+        full_app_access = await user_access.resolve_initial_access(db, email)
         user_id = f"user_{secrets.token_hex(6)}"
         now = datetime.now(timezone.utc)
         await db.users.insert_one(
@@ -143,6 +146,9 @@ def register_routes(
                 "total_answers": 0,
                 "best_sport": None,
                 "sport_scores": {},
+                "full_app_access": full_app_access,
+                "full_app_access_source": "preapproved_email" if full_app_access else "default",
+                "full_app_access_granted_at": now if full_app_access else None,
                 "beta_cohort": BETA_COHORT if BETA_ACCESS_CODE else None,
                 "beta_access_granted_at": now if BETA_ACCESS_CODE else None,
                 "registration_source": "closed_beta" if BETA_ACCESS_CODE else "open",
@@ -173,6 +179,7 @@ def register_routes(
         if not _verify_password(body.password, password_hash):
             raise HTTPException(status_code=401, detail="Invalid email or password")
 
+        user = await user_access.sync_user_from_grant(db, user)
         token = await _issue_session(db, user["user_id"])
         return {"session_token": token, "user": user_out(user)}
 

@@ -6,6 +6,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInUp } from "react-native-reanimated";
+import { BETA_MODE } from "@/src/config/beta";
 import { useAuth } from "@/src/context/AuthContext";
 import { useToast } from "@/src/components/Toast";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
@@ -24,7 +25,8 @@ export default function Login() {
 
   useEffect(() => {
     if (!user) return;
-    const destination = returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : "/(tabs)";
+    const safeReturn = returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : null;
+    const destination = safeReturn || (BETA_MODE && !user.full_app_access ? "/beta" : "/(tabs)");
     router.replace(destination as any);
   }, [user, router, returnTo]);
 
