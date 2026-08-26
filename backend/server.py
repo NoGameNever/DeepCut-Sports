@@ -67,6 +67,12 @@ def _user_out(user: dict) -> dict:
     return output
 
 
+# Legacy route functions resolve their module globals at request time, so point
+# them at the augmented serializer as well. This keeps /auth/me and /profile in
+# sync with native registration/login responses.
+_legacy._user_out = _user_out
+
+
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "").strip()
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.6-luna").strip() or "gpt-5.6-luna"
 openai_client = (
