@@ -25,7 +25,7 @@ services:
       - key: ADMIN_USER_IDS
         sync: false
       - key: BETA_ACCESS_CODE
-        sync: false
+        value: ""
       - key: BETA_COHORT
         value: closed_alpha_1
       - key: FULL_APP_BOOTSTRAP_EMAILS
@@ -45,6 +45,4 @@ services:
       - key: EXPO_PUBLIC_BACKEND_URL
         sync: false
       - key: EXPO_PUBLIC_BETA_MODE
-        value: "true"
-      - key: EXPO_PUBLIC_BETA_VERSION
-        value: Closed Alpha 1
+        value: "false"
