@@ -20,6 +20,7 @@ const STATUSES = ["draft", "flagged", "approved", "rejected", "archived"];
 const SPORTS = ["basketball", "nfl", "baseball", "hockey", "soccer", "golf", "videogames"];
 const DIFFICULTIES = ["easy", "medium", "hard", "deepcut"];
 const BULK_ACCEPT_CONCURRENCY = 5;
+const V1_CAMPAIGN_RE = /\bv1\b/i;
 
 function pct(question: AdminQuestion) {
   if (!question.answer_count) return "—";
@@ -48,6 +49,8 @@ export default function QuestionBankAdmin() {
   const [forbidden, setForbidden] = useState(false);
   const [editing, setEditing] = useState<AdminQuestion | null>(null);
   const [confirmAcceptAll, setConfirmAcceptAll] = useState(false);
+  const [confirmRunAllV1, setConfirmRunAllV1] = useState(false);
+  const [runAllProgress, setRunAllProgress] = useState<{ current: number; total: number; name: string } | null>(null);
   const [editQuestion, setEditQuestion] = useState("");
   const [editAnswer, setEditAnswer] = useState("");
   const [editSource, setEditSource] = useState("");
@@ -238,6 +241,51 @@ export default function QuestionBankAdmin() {
     }
   };
 
+  const v1Campaigns = useMemo(
+    () => campaigns
+      .filter((campaign) => V1_CAMPAIGN_RE.test(campaign.name) && campaign.status !== "complete")
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" })),
+    [campaigns]
+  );
+
+  const runAllV1Once = async () => {
+    if (!v1Campaigns.length || workingId === "run-all-v1") {
+      setConfirmRunAllV1(false);
+      if (!v1Campaigns.length) toast.show("No incomplete V1 campaigns found", "info");
+      return;
+    }
+
+    setConfirmRunAllV1(false);
+    setWorkingId("run-all-v1");
+    let generated = 0;
+    let completed = 0;
+    const failures: string[] = [];
+
+    try {
+      for (let index = 0; index < v1Campaigns.length; index += 1) {
+        const campaign = v1Campaigns[index];
+        setRunAllProgress({ current: index + 1, total: v1Campaigns.length, name: campaign.name });
+        try {
+          const result = await api.generateQuestionCampaignBatch(campaign.id, 25);
+          generated += Number(result.batch?.generated || 0);
+          completed += 1;
+        } catch (e: any) {
+          failures.push(`${campaign.name}: ${e?.detail || "generation failed"}`);
+        }
+      }
+
+      if (failures.length) {
+        toast.show(`Ran ${completed}/${v1Campaigns.length} V1 campaigns · ${generated} drafts generated`, completed ? "info" : "error");
+      } else {
+        toast.show(`Ran all ${completed} V1 campaigns once · ${generated} drafts generated`, "success");
+      }
+      await Promise.all([loadCampaigns(), loadSummary()]);
+    } finally {
+      setRunAllProgress(null);
+      setWorkingId(null);
+    }
+  };
+
   const backfill = async () => {
     setWorkingId("backfill");
     try {
@@ -258,6 +306,7 @@ export default function QuestionBankAdmin() {
     [summary]
   );
   const bulkBusy = workingId === "accept-all";
+  const runAllBusy = workingId === "run-all-v1";
 
   if (loading) {
     return (
@@ -291,7 +340,7 @@ export default function QuestionBankAdmin() {
           <Text style={styles.eyebrow}>DEEPCUT ADMIN</Text>
           <Text style={styles.title}>QUESTION BANK</Text>
         </View>
-        <Pressable onPress={() => void load()} style={styles.iconBtn}>
+        <Pressable onPress={() => void load()} style={styles.iconBtn} disabled={runAllBusy}>
           <Ionicons name="refresh" size={21} color={colors.onSurface} />
         </Pressable>
       </View>
@@ -306,10 +355,10 @@ export default function QuestionBankAdmin() {
         <Text style={styles.smallLine}>{reviewedCount.toLocaleString()} reviewed · {summary?.open_reports || 0} open reports</Text>
 
         <View style={styles.tabRow}>
-          <Pressable style={[styles.tabBtn, tab === "review" && styles.tabActive]} onPress={() => setTab("review")}>
+          <Pressable style={[styles.tabBtn, tab === "review" && styles.tabActive]} onPress={() => setTab("review")} disabled={runAllBusy}>
             <Text style={[styles.tabText, tab === "review" && styles.tabTextActive]}>REVIEW QUEUE</Text>
           </Pressable>
-          <Pressable style={[styles.tabBtn, tab === "campaigns" && styles.tabActive]} onPress={() => setTab("campaigns")}>
+          <Pressable style={[styles.tabBtn, tab === "campaigns" && styles.tabActive]} onPress={() => setTab("campaigns")} disabled={runAllBusy}>
             <Text style={[styles.tabText, tab === "campaigns" && styles.tabTextActive]}>CAMPAIGNS</Text>
           </Pressable>
         </View>
@@ -388,9 +437,30 @@ export default function QuestionBankAdmin() {
               <View style={styles.wrapRow}>
                 {DIFFICULTIES.map((item) => <Pill key={item} label={item} active={campaignDifficulty === item} onPress={() => setCampaignDifficulty(item)} />)}
               </View>
-              <Pressable style={styles.primaryBtn} onPress={createCampaign} disabled={workingId === "new-campaign"}>
+              <Pressable style={styles.primaryBtn} onPress={createCampaign} disabled={workingId === "new-campaign" || runAllBusy}>
                 {workingId === "new-campaign" ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Ionicons name="add-circle" size={19} color={colors.onBrandPrimary} />}
                 <Text style={styles.primaryText}>Create Campaign</Text>
+              </Pressable>
+            </View>
+
+            <View style={styles.runAllCard}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.sectionTitle}>V1 ONE-SHOT RUN</Text>
+                <Text style={styles.source}>
+                  Runs each incomplete campaign with “V1” in its name once, in natural name order. One Generate Next 25 call per campaign.
+                </Text>
+                {runAllProgress && (
+                  <Text style={styles.telemetry}>Running {runAllProgress.current}/{runAllProgress.total}: {runAllProgress.name}</Text>
+                )}
+              </View>
+              <Pressable
+                testID="run-all-v1-once"
+                style={[styles.primaryBtn, styles.runAllBtn]}
+                onPress={() => setConfirmRunAllV1(true)}
+                disabled={runAllBusy || v1Campaigns.length === 0}
+              >
+                {runAllBusy ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Ionicons name="play-skip-forward" size={19} color={colors.onBrandPrimary} />}
+                <Text style={styles.primaryText}>{runAllBusy ? "Running V1…" : `Run All V1 Once (${v1Campaigns.length})`}</Text>
               </Pressable>
             </View>
 
@@ -406,7 +476,7 @@ export default function QuestionBankAdmin() {
                   <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress}%` }]} /></View>
                   <Text style={styles.telemetry}>{campaign.imported_count} imported · {campaign.duplicate_count} duplicates · {campaign.rejected_count} rejected</Text>
                   {campaign.status !== "complete" && (
-                    <Pressable style={styles.primaryBtn} onPress={() => void generateNext(campaign)} disabled={workingId === campaign.id}>
+                    <Pressable style={styles.primaryBtn} onPress={() => void generateNext(campaign)} disabled={workingId === campaign.id || runAllBusy}>
                       {workingId === campaign.id ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Ionicons name="sparkles" size={18} color={colors.onBrandPrimary} />}
                       <Text style={styles.primaryText}>Generate Next 25</Text>
                     </Pressable>
@@ -432,6 +502,26 @@ export default function QuestionBankAdmin() {
               </Pressable>
               <Pressable style={[styles.primaryBtn, styles.acceptAllBtn, styles.confirmBtn]} onPress={() => void acceptAllLoaded()}>
                 <Text style={styles.acceptAllText}>Yes, Accept All</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {confirmRunAllV1 && (
+        <View style={styles.editOverlay}>
+          <View style={styles.confirmCard}>
+            <Ionicons name="play-skip-forward" size={44} color={colors.brandPrimary} />
+            <Text style={styles.sectionTitle}>RUN ALL V1 ONCE?</Text>
+            <Text style={styles.confirmText}>
+              This will run {v1Campaigns.length} incomplete V1 campaign{v1Campaigns.length === 1 ? "" : "s"} sequentially. Each campaign gets exactly one Generate Next 25 request during this run. It will not loop a campaign to completion.
+            </Text>
+            <View style={styles.confirmActions}>
+              <Pressable style={[styles.secondaryBtn, styles.confirmBtn]} onPress={() => setConfirmRunAllV1(false)}>
+                <Text style={styles.secondaryText}>Cancel</Text>
+              </Pressable>
+              <Pressable style={[styles.primaryBtn, styles.confirmBtn]} onPress={() => void runAllV1Once()}>
+                <Text style={styles.primaryText}>Run {v1Campaigns.length} in Order</Text>
               </Pressable>
             </View>
           </View>
@@ -515,6 +605,8 @@ const styles = StyleSheet.create({
   secondaryText: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },
   empty: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: fontSize.base, textAlign: "center", paddingVertical: spacing.xl },
   formCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 2, borderColor: colors.ink, padding: spacing.lg, gap: spacing.md },
+  runAllCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 2, borderColor: colors.brandPrimary, padding: spacing.lg, gap: spacing.md },
+  runAllBtn: { alignSelf: "stretch" },
   sectionTitle: { color: colors.onSurface, fontFamily: fonts.cartoon, fontSize: fontSize.xl, letterSpacing: 0.8 },
   fieldLabel: { color: colors.onSurfaceTertiary, fontFamily: fonts.bodySemiBold, fontSize: 10, letterSpacing: 0.8 },
   input: { minHeight: 48, borderRadius: radius.md, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingHorizontal: spacing.md, color: colors.onSurface, fontFamily: fonts.body, fontSize: fontSize.base },
