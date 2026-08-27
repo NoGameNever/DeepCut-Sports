@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { api, tokenStore } from "@/src/api/client";
+import { activateDeepCutCredentials } from "@/src/api/credentialMigration";
 
-type User = {
+export type User = {
   user_id: string;
   email: string;
   name?: string;
@@ -15,6 +16,9 @@ type User = {
   best_sport?: string | null;
   full_app_access?: boolean;
   beta_cohort?: string | null;
+  credential_provider?: "deepcut_password" | "legacy_migration_pending";
+  credential_status?: "active" | "activation_required" | "email_conflict" | "missing_email";
+  credential_migration_required?: boolean;
 };
 
 type AuthState = {
@@ -23,6 +27,7 @@ type AuthState = {
   signingIn: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, username?: string) => Promise<void>;
+  migrateCredentials: (password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
 };
@@ -86,6 +91,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const migrateCredentials = useCallback(async (password: string) => {
+    const result = await activateDeepCutCredentials(password);
+    await tokenStore.set(result.session_token);
+    setUser(result.user);
+  }, []);
+
   const signOut = useCallback(async () => {
     try {
       await api.logout();
@@ -95,7 +106,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, signingIn, signIn, register, signOut, refresh }}>
+    <AuthContext.Provider
+      value={{ user, loading, signingIn, signIn, register, migrateCredentials, signOut, refresh }}
+    >
       {children}
     </AuthContext.Provider>
   );
