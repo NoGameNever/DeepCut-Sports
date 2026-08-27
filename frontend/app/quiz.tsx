@@ -67,7 +67,7 @@ export default function Quiz() {
   const [lobbySettings, setLobbySettings] = useState<any>(null);
   const [streak, setStreak] = useState(0);
   const [cfgTimer] = useState(timer || "standard");
-  const [singleTimerSeconds, setSingleTimerSeconds] = useState(timerOption(cfgTimer).seconds);
+  const [singleTimerSeconds, setSingleTimerSeconds] = useState<number>(timerOption(cfgTimer).seconds);
   const lobbyTimer = lobbySettings?.timer_seconds ?? 15;
   const noTimer = isLobby && lobbyTimer === 0;
   const perQuestionSeconds = isLobby ? (lobbyTimer > 0 ? lobbyTimer : 999) : singleTimerSeconds;
