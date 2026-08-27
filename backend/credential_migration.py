@@ -27,6 +27,7 @@ EMAIL_CONFLICT = "email_conflict"
 MISSING_EMAIL = "missing_email"
 DEEPCUT_PROVIDER = "deepcut_password"
 LEGACY_PROVIDER = "legacy_migration_pending"
+BLOCKING_STATUSES = {EMAIL_CONFLICT, MISSING_EMAIL}
 
 logger = logging.getLogger(__name__)
 
@@ -62,14 +63,22 @@ def hash_password(password: str) -> str:
 
 def credential_fields(user: dict[str, Any]) -> dict[str, Any]:
     """Return public, non-secret migration state for an account."""
-    if user.get("password_hash"):
+    has_password = bool(user.get("password_hash"))
+    stored_status = str(user.get("credential_status") or "")
+    if stored_status in BLOCKING_STATUSES:
+        return {
+            "credential_provider": DEEPCUT_PROVIDER if has_password else LEGACY_PROVIDER,
+            "credential_status": stored_status,
+            "credential_migration_required": True,
+        }
+    if has_password:
         return {
             "credential_provider": DEEPCUT_PROVIDER,
             "credential_status": ACTIVE,
             "credential_migration_required": False,
         }
 
-    status = str(user.get("credential_status") or ACTIVATION_REQUIRED)
+    status = stored_status or ACTIVATION_REQUIRED
     if status == ACTIVE:
         status = ACTIVATION_REQUIRED
     return {
@@ -129,34 +138,18 @@ async def migrate_all_user_metadata(db) -> dict[str, int]:
 
         email = normalize_email(user.get("email_normalized") or user.get("email"))
         has_password = bool(user.get("password_hash"))
+        provider = DEEPCUT_PROVIDER if has_password else LEGACY_PROVIDER
         updates: dict[str, Any] = {
             "credential_migration_scanned_at": now,
+            "credential_provider": provider,
+            "auth_provider": provider,
         }
 
-        if has_password:
+        if not email:
             updates.update(
                 {
-                    "credential_provider": DEEPCUT_PROVIDER,
-                    "credential_status": ACTIVE,
-                    "credential_migration_required": False,
-                    "auth_provider": DEEPCUT_PROVIDER,
-                }
-            )
-            counts["active"] += 1
-            if email:
-                collision = await db.users.find_one(
-                    email_query(email, exclude_user_id=user_id),
-                    {"_id": 0, "user_id": 1},
-                )
-                if not collision:
-                    updates.update({"email": email, "email_normalized": email})
-        elif not email:
-            updates.update(
-                {
-                    "credential_provider": LEGACY_PROVIDER,
                     "credential_status": MISSING_EMAIL,
                     "credential_migration_required": True,
-                    "auth_provider": LEGACY_PROVIDER,
                 }
             )
             counts["missing_email"] += 1
@@ -168,22 +161,28 @@ async def migrate_all_user_metadata(db) -> dict[str, int]:
             if collision:
                 updates.update(
                     {
-                        "credential_provider": LEGACY_PROVIDER,
                         "credential_status": EMAIL_CONFLICT,
                         "credential_migration_required": True,
-                        "auth_provider": LEGACY_PROVIDER,
                     }
                 )
                 counts["email_conflict"] += 1
+            elif has_password:
+                updates.update(
+                    {
+                        "email": email,
+                        "email_normalized": email,
+                        "credential_status": ACTIVE,
+                        "credential_migration_required": False,
+                    }
+                )
+                counts["active"] += 1
             else:
                 updates.update(
                     {
                         "email": email,
                         "email_normalized": email,
-                        "credential_provider": LEGACY_PROVIDER,
                         "credential_status": ACTIVATION_REQUIRED,
                         "credential_migration_required": True,
-                        "auth_provider": LEGACY_PROVIDER,
                     }
                 )
                 counts["activation_required"] += 1
@@ -196,10 +195,10 @@ async def migrate_all_user_metadata(db) -> dict[str, int]:
                 {
                     "$unset": {"email_normalized": ""},
                     "$set": {
-                        "credential_provider": LEGACY_PROVIDER,
+                        "credential_provider": provider,
                         "credential_status": EMAIL_CONFLICT,
                         "credential_migration_required": True,
-                        "auth_provider": LEGACY_PROVIDER,
+                        "auth_provider": provider,
                         "credential_migration_scanned_at": now,
                     },
                 },
@@ -215,16 +214,12 @@ async def migrate_all_user_metadata(db) -> dict[str, int]:
 
 
 async def credential_summary(db) -> dict[str, int]:
-    total = await db.users.count_documents({})
-    active = await db.users.count_documents({"password_hash": {"$exists": True, "$nin": [None, ""]}})
-    conflicts = await db.users.count_documents({"credential_status": EMAIL_CONFLICT})
-    missing_email = await db.users.count_documents({"credential_status": MISSING_EMAIL})
     return {
-        "total": total,
-        "active": active,
-        "activation_required": max(total - active - conflicts - missing_email, 0),
-        "email_conflict": conflicts,
-        "missing_email": missing_email,
+        "total": await db.users.count_documents({}),
+        "active": await db.users.count_documents({"credential_status": ACTIVE}),
+        "activation_required": await db.users.count_documents({"credential_status": ACTIVATION_REQUIRED}),
+        "email_conflict": await db.users.count_documents({"credential_status": EMAIL_CONFLICT}),
+        "missing_email": await db.users.count_documents({"credential_status": MISSING_EMAIL}),
     }
 
 
