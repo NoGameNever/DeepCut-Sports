@@ -2,9 +2,9 @@ export type Opt = { key: string; label: string; soon?: boolean; hint?: string; i
 
 export const GAME_TYPES: Opt[] = [
   { key: "classic", label: "Classic", hint: "Standard Q&A" },
-  { key: "lightning", label: "Lightning", hint: "Fast rounds" },
-  { key: "streak", label: "Streak", hint: "Combo bonuses" },
-  { key: "deepcut", label: "Deep Cut", hint: "Obscure trivia" },
+  { key: "lightning", label: "Lightning", hint: "10s rounds + speed scoring" },
+  { key: "streak", label: "Streak", hint: "Combo scoring locked on" },
+  { key: "deepcut", label: "Deep Cut", hint: "DeepCut difficulty locked" },
   { key: "survival", label: "Survival", soon: true },
   { key: "wager", label: "Wager", soon: true },
   { key: "team", label: "Team 2v2", soon: true },
@@ -26,9 +26,8 @@ export const CATEGORIES: Opt[] = [
   { key: "mlb", label: "MLB", icon: "baseball" },
   { key: "nhl", label: "NHL", icon: "hockey-puck" },
   { key: "soccer", label: "Soccer", icon: "soccer" },
-  { key: "college", label: "College", icon: "school" },
-  { key: "combat", label: "Combat", icon: "boxing-glove" },
-  { key: "olympics", label: "Olympics", icon: "medal" },
+  { key: "golf", label: "Men's PGA Golf", icon: "golf" },
+  { key: "videogames", label: "Sports Games", icon: "gamepad-variant" },
   { key: "general", label: "General", icon: "trophy" },
 ];
 
@@ -44,8 +43,8 @@ export const ERAS: Opt[] = [
 
 export const ANSWER_FORMATS: Opt[] = [
   { key: "multiple_choice", label: "Multiple Choice" },
-  { key: "true_false", label: "True / False" },
-  { key: "mixed", label: "Mixed" },
+  { key: "true_false", label: "True / False", soon: true },
+  { key: "mixed", label: "Mixed", soon: true },
   { key: "type_in", label: "Type-In", soon: true },
 ];
 
@@ -101,6 +100,7 @@ export const summarize = (s: any) => {
     { icon: "help-circle", label: "Questions", value: String(s.question_count) },
     { icon: "speedometer", label: "Difficulty", value: difficultyLabel(s.difficulty) },
     { icon: "shape", label: "Categories", value: (s.selected_categories || []).map(catLabel).join(", ") },
+    { icon: "calendar-range", label: "Era", value: eraLabel(s.era_filter) },
     { icon: "timer-outline", label: "Timer", value: timerLabel(s.timer_seconds) },
     { icon: "format-list-checks", label: "Format", value: formatLabel(s.answer_format) },
   ];
