@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useCallback, useRef, useState } from "react";
+import React, { createContext, useContext, useCallback, useMemo, useRef, useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, { FadeInDown, FadeOutUp } from "react-native-reanimated";
@@ -22,13 +22,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     timer.current = setTimeout(() => setToast(null), 2800);
   }, []);
 
+  const contextValue = useMemo(() => ({ show }), [show]);
+
   const iconName =
     toast?.type === "success" ? "checkmark-circle" : toast?.type === "error" ? "alert-circle" : "information-circle";
   const accent =
     toast?.type === "success" ? colors.success : toast?.type === "error" ? colors.error : colors.brandPrimary;
 
   return (
-    <Ctx.Provider value={{ show }}>
+    <Ctx.Provider value={contextValue}>
       {children}
       {toast && (
         <Animated.View
