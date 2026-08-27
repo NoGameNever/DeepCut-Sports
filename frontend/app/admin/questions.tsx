@@ -21,6 +21,17 @@ const SPORTS = ["basketball", "nfl", "baseball", "hockey", "soccer", "golf", "vi
 const DIFFICULTIES = ["easy", "medium", "hard", "deepcut"];
 const BULK_ACCEPT_CONCURRENCY = 5;
 const V1_CAMPAIGN_RE = /\bv1\b/i;
+const DEEPCUT_FILL_CAP = 500;
+const DEEPCUT_FILL_PLAN = [
+  { name: "V1 DeepCut Basketball", sport: "basketball", target: 500 },
+  { name: "V1 DeepCut NFL", sport: "nfl", target: 500 },
+  { name: "V1 DeepCut Baseball", sport: "baseball", target: 450 },
+  { name: "V1 DeepCut Hockey", sport: "hockey", target: 350 },
+  { name: "V1 DeepCut Soccer", sport: "soccer", target: 350 },
+  { name: "V1 DeepCut Golf", sport: "golf", target: 300 },
+  { name: "V1 DeepCut Sports Games", sport: "videogames", target: 350 },
+] as const;
+const DEEPCUT_FILL_TOTAL = DEEPCUT_FILL_PLAN.reduce((sum, item) => sum + item.target, 0);
 
 function pct(question: AdminQuestion) {
   if (!question.answer_count) return "—";
@@ -50,7 +61,9 @@ export default function QuestionBankAdmin() {
   const [editing, setEditing] = useState<AdminQuestion | null>(null);
   const [confirmAcceptAll, setConfirmAcceptAll] = useState(false);
   const [confirmRunAllV1, setConfirmRunAllV1] = useState(false);
+  const [confirmDeepCutFill, setConfirmDeepCutFill] = useState(false);
   const [runAllProgress, setRunAllProgress] = useState<{ current: number; total: number; name: string } | null>(null);
+  const [fillProgress, setFillProgress] = useState<{ generated: number; cap: number; name: string } | null>(null);
   const [editQuestion, setEditQuestion] = useState("");
   const [editAnswer, setEditAnswer] = useState("");
   const [editSource, setEditSource] = useState("");
@@ -73,7 +86,9 @@ export default function QuestionBankAdmin() {
   }, [status]);
 
   const loadCampaigns = useCallback(async () => {
-    setCampaigns(await api.questionCampaigns());
+    const data = await api.questionCampaigns();
+    setCampaigns(data);
+    return data;
   }, []);
 
   const load = useCallback(async () => {
@@ -93,7 +108,6 @@ export default function QuestionBankAdmin() {
 
   useEffect(() => {
     if (!loading && !forbidden) void loadQuestions().catch(() => {});
-    // status-only refresh; full load is handled above
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
@@ -148,39 +162,27 @@ export default function QuestionBankAdmin() {
       toast.show("No loaded questions to accept", "info");
       return;
     }
-
     setConfirmAcceptAll(false);
     setWorkingId("accept-all");
     let approved = 0;
     const failures: string[] = [];
-
     try {
       for (let index = 0; index < candidates.length; index += BULK_ACCEPT_CONCURRENCY) {
         const batch = candidates.slice(index, index + BULK_ACCEPT_CONCURRENCY);
-        const results = await Promise.allSettled(
-          batch.map((question) =>
-            api.reviewAdminQuestion(question.id, {
-              status: "approved",
-              verification_status: "verified",
-              review_note: "Bulk accepted from the admin review queue after confirmation.",
-            })
-          )
-        );
-
+        const results = await Promise.allSettled(batch.map((question) => api.reviewAdminQuestion(question.id, {
+          status: "approved",
+          verification_status: "verified",
+          review_note: "Bulk accepted from the admin review queue after confirmation.",
+        })));
         results.forEach((result, resultIndex) => {
           if (result.status === "fulfilled") approved += 1;
-          else {
-            const reason = (result.reason as any)?.detail || "Approval failed";
-            failures.push(`${batch[resultIndex].id}: ${reason}`);
-          }
+          else failures.push(`${batch[resultIndex].id}: ${(result.reason as any)?.detail || "Approval failed"}`);
         });
       }
-
-      if (failures.length) {
-        toast.show(`Approved ${approved}; ${failures.length} skipped`, approved ? "info" : "error");
-      } else {
-        toast.show(`Accepted all ${approved} loaded questions`, "success");
-      }
+      toast.show(
+        failures.length ? `Approved ${approved}; ${failures.length} skipped` : `Accepted all ${approved} loaded questions`,
+        failures.length ? (approved ? "info" : "error") : "success"
+      );
       await Promise.all([loadSummary(), loadQuestions()]);
     } catch (e: any) {
       toast.show(e?.detail || "Accept all failed", "error");
@@ -254,13 +256,11 @@ export default function QuestionBankAdmin() {
       if (!v1Campaigns.length) toast.show("No incomplete V1 campaigns found", "info");
       return;
     }
-
     setConfirmRunAllV1(false);
     setWorkingId("run-all-v1");
     let generated = 0;
     let completed = 0;
     const failures: string[] = [];
-
     try {
       for (let index = 0; index < v1Campaigns.length; index += 1) {
         const campaign = v1Campaigns[index];
@@ -273,15 +273,76 @@ export default function QuestionBankAdmin() {
           failures.push(`${campaign.name}: ${e?.detail || "generation failed"}`);
         }
       }
-
-      if (failures.length) {
-        toast.show(`Ran ${completed}/${v1Campaigns.length} V1 campaigns · ${generated} drafts generated`, completed ? "info" : "error");
-      } else {
-        toast.show(`Ran all ${completed} V1 campaigns once · ${generated} drafts generated`, "success");
-      }
+      toast.show(
+        failures.length ? `Ran ${completed}/${v1Campaigns.length} V1 campaigns · ${generated} drafts generated` : `Ran all ${completed} V1 campaigns once · ${generated} drafts generated`,
+        failures.length ? (completed ? "info" : "error") : "success"
+      );
       await Promise.all([loadCampaigns(), loadSummary()]);
     } finally {
       setRunAllProgress(null);
+      setWorkingId(null);
+    }
+  };
+
+  const runDeepCutFill = async () => {
+    if (workingId) return;
+    setConfirmDeepCutFill(false);
+    setWorkingId("deepcut-fill");
+    let generatedThisRun = 0;
+    const failures: string[] = [];
+    try {
+      let currentCampaigns = await loadCampaigns();
+      for (const plan of DEEPCUT_FILL_PLAN) {
+        let campaign = currentCampaigns.find((item) => item.name.toLowerCase() === plan.name.toLowerCase());
+        if (!campaign) {
+          try {
+            campaign = await api.createQuestionCampaign({
+              name: plan.name,
+              sport: plan.sport,
+              target_count: plan.target,
+              difficulty: "deepcut",
+              tags: ["bulk_campaign", "deepcut_fill", "v1"],
+            });
+            currentCampaigns = [...currentCampaigns, campaign];
+          } catch (e: any) {
+            failures.push(`${plan.name}: ${e?.detail || "couldn't create campaign"}`);
+            continue;
+          }
+        }
+
+        while (campaign.status !== "complete" && campaign.generated_count < plan.target && generatedThisRun < DEEPCUT_FILL_CAP) {
+          const remaining = Math.max(0, plan.target - campaign.generated_count);
+          const allowance = Math.max(0, DEEPCUT_FILL_CAP - generatedThisRun);
+          const batchSize = Math.min(25, remaining, allowance);
+          if (batchSize < 1) break;
+          setFillProgress({ generated: generatedThisRun, cap: DEEPCUT_FILL_CAP, name: plan.name });
+          try {
+            const result = await api.generateQuestionCampaignBatch(campaign.id, batchSize);
+            const batchGenerated = Number(result.batch?.generated || 0);
+            campaign = result.campaign;
+            generatedThisRun += batchGenerated;
+            setFillProgress({ generated: generatedThisRun, cap: DEEPCUT_FILL_CAP, name: plan.name });
+            if (batchGenerated < 1) {
+              failures.push(`${plan.name}: generation returned zero questions`);
+              break;
+            }
+          } catch (e: any) {
+            failures.push(`${plan.name}: ${e?.detail || "generation failed"}`);
+            break;
+          }
+        }
+        if (generatedThisRun >= DEEPCUT_FILL_CAP) break;
+      }
+
+      toast.show(
+        failures.length
+          ? `DeepCut fill generated ${generatedThisRun} drafts with ${failures.length} campaign issue${failures.length === 1 ? "" : "s"}`
+          : `DeepCut fill generated ${generatedThisRun} drafts`,
+        failures.length ? (generatedThisRun ? "info" : "error") : "success"
+      );
+      await Promise.all([loadCampaigns(), loadSummary()]);
+    } finally {
+      setFillProgress(null);
       setWorkingId(null);
     }
   };
@@ -307,6 +368,8 @@ export default function QuestionBankAdmin() {
   );
   const bulkBusy = workingId === "accept-all";
   const runAllBusy = workingId === "run-all-v1";
+  const fillBusy = workingId === "deepcut-fill";
+  const campaignBusy = runAllBusy || fillBusy;
 
   if (loading) {
     return (
@@ -333,14 +396,14 @@ export default function QuestionBankAdmin() {
   return (
     <View style={[styles.container, { paddingTop: insets.top }]} testID="question-bank-admin">
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.iconBtn}>
+        <Pressable onPress={() => router.back()} style={styles.iconBtn} disabled={campaignBusy}>
           <Ionicons name="chevron-back" size={22} color={colors.onSurface} />
         </Pressable>
         <View style={{ flex: 1 }}>
           <Text style={styles.eyebrow}>DEEPCUT ADMIN</Text>
           <Text style={styles.title}>QUESTION BANK</Text>
         </View>
-        <Pressable onPress={() => void load()} style={styles.iconBtn} disabled={runAllBusy}>
+        <Pressable onPress={() => void load()} style={styles.iconBtn} disabled={campaignBusy}>
           <Ionicons name="refresh" size={21} color={colors.onSurface} />
         </Pressable>
       </View>
@@ -355,10 +418,10 @@ export default function QuestionBankAdmin() {
         <Text style={styles.smallLine}>{reviewedCount.toLocaleString()} reviewed · {summary?.open_reports || 0} open reports</Text>
 
         <View style={styles.tabRow}>
-          <Pressable style={[styles.tabBtn, tab === "review" && styles.tabActive]} onPress={() => setTab("review")} disabled={runAllBusy}>
+          <Pressable style={[styles.tabBtn, tab === "review" && styles.tabActive]} onPress={() => setTab("review")} disabled={campaignBusy}>
             <Text style={[styles.tabText, tab === "review" && styles.tabTextActive]}>REVIEW QUEUE</Text>
           </Pressable>
-          <Pressable style={[styles.tabBtn, tab === "campaigns" && styles.tabActive]} onPress={() => setTab("campaigns")} disabled={runAllBusy}>
+          <Pressable style={[styles.tabBtn, tab === "campaigns" && styles.tabActive]} onPress={() => setTab("campaigns")} disabled={campaignBusy}>
             <Text style={[styles.tabText, tab === "campaigns" && styles.tabTextActive]}>CAMPAIGNS</Text>
           </Pressable>
         </View>
@@ -368,15 +431,9 @@ export default function QuestionBankAdmin() {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.pillRow}>
               {STATUSES.map((item) => <Pill key={item} label={`${item} ${summary?.statuses[item] || 0}`} active={status === item} onPress={() => setStatus(item)} />)}
             </ScrollView>
-
             <View style={styles.bulkActionRow}>
               {status === "draft" && questions.length > 0 && (
-                <Pressable
-                  testID="accept-all-review-questions"
-                  style={[styles.primaryBtn, styles.bulkActionBtn, styles.acceptAllBtn]}
-                  onPress={() => setConfirmAcceptAll(true)}
-                  disabled={bulkBusy}
-                >
+                <Pressable testID="accept-all-review-questions" style={[styles.primaryBtn, styles.bulkActionBtn, styles.acceptAllBtn]} onPress={() => setConfirmAcceptAll(true)} disabled={bulkBusy}>
                   {bulkBusy ? <ActivityIndicator color={colors.ink} /> : <Ionicons name="checkmark-done-circle" size={19} color={colors.ink} />}
                   <Text style={styles.acceptAllText}>Accept All {questions.length}</Text>
                 </Pressable>
@@ -386,7 +443,6 @@ export default function QuestionBankAdmin() {
                 <Text style={styles.secondaryText}>Normalize legacy metadata</Text>
               </Pressable>
             </View>
-
             {questions.length === 0 ? <Text style={styles.empty}>No questions in this queue.</Text> : null}
             {questions.map((question) => {
               const busy = bulkBusy || workingId === question.id;
@@ -394,29 +450,17 @@ export default function QuestionBankAdmin() {
                 <View key={question.id} style={styles.questionCard}>
                   <View style={styles.metaRow}>
                     <Text style={styles.meta}>{question.sport?.toUpperCase()} · {question.difficulty?.toUpperCase()}</Text>
-                    <Text style={[styles.verify, question.verification_status === "verified" && styles.verified]}>
-                      {(question.verification_status || "UNVERIFIED").toUpperCase()}
-                    </Text>
+                    <Text style={[styles.verify, question.verification_status === "verified" && styles.verified]}>{(question.verification_status || "UNVERIFIED").toUpperCase()}</Text>
                   </View>
                   <Text style={styles.question}>{question.question}</Text>
                   <Text style={styles.answer}>✓ {question.correct_answer}</Text>
                   <Text style={styles.source}>Source: {question.source || "Missing"}</Text>
-                  <Text style={styles.telemetry}>
-                    {question.answer_count || 0} answers · {pct(question)} correct · {question.report_count || 0} reports · confidence {question.factual_confidence == null ? "—" : Math.round(question.factual_confidence * 100) + "%"}
-                  </Text>
+                  <Text style={styles.telemetry}>{question.answer_count || 0} answers · {pct(question)} correct · {question.report_count || 0} reports · confidence {question.factual_confidence == null ? "—" : Math.round(question.factual_confidence * 100) + "%"}</Text>
                   <View style={styles.actionRow}>
                     <Pressable style={styles.miniBtn} onPress={() => openEdit(question)} disabled={busy}><Text style={styles.miniText}>Edit</Text></Pressable>
-                    {question.verification_status !== "verified" && (
-                      <Pressable style={styles.miniBtn} onPress={() => void markVerified(question)} disabled={busy}><Text style={styles.miniText}>Verify</Text></Pressable>
-                    )}
-                    {question.status !== "approved" && (
-                      <Pressable style={[styles.miniBtn, styles.approveBtn]} onPress={() => void review(question, "approved")} disabled={busy}>
-                        <Text style={styles.approveText}>Approve</Text>
-                      </Pressable>
-                    )}
-                    <Pressable style={[styles.miniBtn, styles.rejectBtn]} onPress={() => void review(question, "rejected")} disabled={busy}>
-                      <Text style={styles.rejectText}>Reject</Text>
-                    </Pressable>
+                    {question.verification_status !== "verified" && <Pressable style={styles.miniBtn} onPress={() => void markVerified(question)} disabled={busy}><Text style={styles.miniText}>Verify</Text></Pressable>}
+                    {question.status !== "approved" && <Pressable style={[styles.miniBtn, styles.approveBtn]} onPress={() => void review(question, "approved")} disabled={busy}><Text style={styles.approveText}>Approve</Text></Pressable>}
+                    <Pressable style={[styles.miniBtn, styles.rejectBtn]} onPress={() => void review(question, "rejected")} disabled={busy}><Text style={styles.rejectText}>Reject</Text></Pressable>
                   </View>
                 </View>
               );
@@ -424,6 +468,19 @@ export default function QuestionBankAdmin() {
           </>
         ) : (
           <>
+            <View style={styles.deepCutFillCard}>
+              <View style={{ gap: spacing.xs }}>
+                <Text style={styles.eyebrow}>DEEPCUT-FIRST INVENTORY</Text>
+                <Text style={styles.sectionTitle}>FILL DEEPCUT BANK</Text>
+                <Text style={styles.source}>Target {DEEPCUT_FILL_TOTAL.toLocaleString()} DeepCut-difficulty drafts across all seven sports. Each click creates any missing V1 fill campaigns and generates up to {DEEPCUT_FILL_CAP} questions, then stops cleanly so you can review or resume.</Text>
+                {fillProgress && <Text style={styles.telemetry}>This run: {fillProgress.generated}/{fillProgress.cap} · {fillProgress.name}</Text>}
+              </View>
+              <Pressable testID="fill-deepcut-bank" style={[styles.primaryBtn, styles.fillBtn]} onPress={() => setConfirmDeepCutFill(true)} disabled={campaignBusy || Boolean(workingId)}>
+                {fillBusy ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Ionicons name="flash" size={20} color={colors.onBrandPrimary} />}
+                <Text style={styles.primaryText}>{fillBusy ? "Filling DeepCut Bank…" : `Fill DeepCut Bank · Max ${DEEPCUT_FILL_CAP}`}</Text>
+              </Pressable>
+            </View>
+
             <View style={styles.formCard}>
               <Text style={styles.sectionTitle}>NEW GENERATION CAMPAIGN</Text>
               <TextInput style={styles.input} value={campaignName} onChangeText={setCampaignName} placeholder="Campaign name" placeholderTextColor={colors.onSurfaceTertiary} />
@@ -434,10 +491,8 @@ export default function QuestionBankAdmin() {
                 {SPORTS.map((item) => <Pill key={item} label={item} active={campaignSport === item} onPress={() => setCampaignSport(item)} />)}
               </ScrollView>
               <Text style={styles.fieldLabel}>DIFFICULTY</Text>
-              <View style={styles.wrapRow}>
-                {DIFFICULTIES.map((item) => <Pill key={item} label={item} active={campaignDifficulty === item} onPress={() => setCampaignDifficulty(item)} />)}
-              </View>
-              <Pressable style={styles.primaryBtn} onPress={createCampaign} disabled={workingId === "new-campaign" || runAllBusy}>
+              <View style={styles.wrapRow}>{DIFFICULTIES.map((item) => <Pill key={item} label={item} active={campaignDifficulty === item} onPress={() => setCampaignDifficulty(item)} />)}</View>
+              <Pressable style={styles.primaryBtn} onPress={createCampaign} disabled={workingId === "new-campaign" || campaignBusy}>
                 {workingId === "new-campaign" ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Ionicons name="add-circle" size={19} color={colors.onBrandPrimary} />}
                 <Text style={styles.primaryText}>Create Campaign</Text>
               </Pressable>
@@ -446,19 +501,10 @@ export default function QuestionBankAdmin() {
             <View style={styles.runAllCard}>
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.sectionTitle}>V1 ONE-SHOT RUN</Text>
-                <Text style={styles.source}>
-                  Runs each incomplete campaign with “V1” in its name once, in natural name order. One Generate Next 25 call per campaign.
-                </Text>
-                {runAllProgress && (
-                  <Text style={styles.telemetry}>Running {runAllProgress.current}/{runAllProgress.total}: {runAllProgress.name}</Text>
-                )}
+                <Text style={styles.source}>Runs each incomplete campaign with “V1” in its name once, in natural name order. One Generate Next 25 call per campaign.</Text>
+                {runAllProgress && <Text style={styles.telemetry}>Running {runAllProgress.current}/{runAllProgress.total}: {runAllProgress.name}</Text>}
               </View>
-              <Pressable
-                testID="run-all-v1-once"
-                style={[styles.primaryBtn, styles.runAllBtn]}
-                onPress={() => setConfirmRunAllV1(true)}
-                disabled={runAllBusy || v1Campaigns.length === 0}
-              >
+              <Pressable testID="run-all-v1-once" style={[styles.primaryBtn, styles.runAllBtn]} onPress={() => setConfirmRunAllV1(true)} disabled={campaignBusy || v1Campaigns.length === 0}>
                 {runAllBusy ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Ionicons name="play-skip-forward" size={19} color={colors.onBrandPrimary} />}
                 <Text style={styles.primaryText}>{runAllBusy ? "Running V1…" : `Run All V1 Once (${v1Campaigns.length})`}</Text>
               </Pressable>
@@ -476,7 +522,7 @@ export default function QuestionBankAdmin() {
                   <View style={styles.progressTrack}><View style={[styles.progressFill, { width: `${progress}%` }]} /></View>
                   <Text style={styles.telemetry}>{campaign.imported_count} imported · {campaign.duplicate_count} duplicates · {campaign.rejected_count} rejected</Text>
                   {campaign.status !== "complete" && (
-                    <Pressable style={styles.primaryBtn} onPress={() => void generateNext(campaign)} disabled={workingId === campaign.id || runAllBusy}>
+                    <Pressable style={styles.primaryBtn} onPress={() => void generateNext(campaign)} disabled={workingId === campaign.id || campaignBusy}>
                       {workingId === campaign.id ? <ActivityIndicator color={colors.onBrandPrimary} /> : <Ionicons name="sparkles" size={18} color={colors.onBrandPrimary} />}
                       <Text style={styles.primaryText}>Generate Next 25</Text>
                     </Pressable>
@@ -493,16 +539,10 @@ export default function QuestionBankAdmin() {
           <View style={styles.confirmCard}>
             <Ionicons name="checkmark-done-circle" size={44} color={colors.success} />
             <Text style={styles.sectionTitle}>ACCEPT ALL {questions.length}?</Text>
-            <Text style={styles.confirmText}>
-              This approves every question currently loaded in the draft review queue and marks each one verified. Confirm only after checking the facts, answer choices, and listed sources.
-            </Text>
+            <Text style={styles.confirmText}>This approves every question currently loaded in the draft review queue and marks each one verified. Confirm only after checking the facts, answer choices, and listed sources.</Text>
             <View style={styles.confirmActions}>
-              <Pressable style={[styles.secondaryBtn, styles.confirmBtn]} onPress={() => setConfirmAcceptAll(false)}>
-                <Text style={styles.secondaryText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={[styles.primaryBtn, styles.acceptAllBtn, styles.confirmBtn]} onPress={() => void acceptAllLoaded()}>
-                <Text style={styles.acceptAllText}>Yes, Accept All</Text>
-              </Pressable>
+              <Pressable style={[styles.secondaryBtn, styles.confirmBtn]} onPress={() => setConfirmAcceptAll(false)}><Text style={styles.secondaryText}>Cancel</Text></Pressable>
+              <Pressable style={[styles.primaryBtn, styles.acceptAllBtn, styles.confirmBtn]} onPress={() => void acceptAllLoaded()}><Text style={styles.acceptAllText}>Yes, Accept All</Text></Pressable>
             </View>
           </View>
         </View>
@@ -513,16 +553,24 @@ export default function QuestionBankAdmin() {
           <View style={styles.confirmCard}>
             <Ionicons name="play-skip-forward" size={44} color={colors.brandPrimary} />
             <Text style={styles.sectionTitle}>RUN ALL V1 ONCE?</Text>
-            <Text style={styles.confirmText}>
-              This will run {v1Campaigns.length} incomplete V1 campaign{v1Campaigns.length === 1 ? "" : "s"} sequentially. Each campaign gets exactly one Generate Next 25 request during this run. It will not loop a campaign to completion.
-            </Text>
+            <Text style={styles.confirmText}>This will run {v1Campaigns.length} incomplete V1 campaign{v1Campaigns.length === 1 ? "" : "s"} sequentially. Each campaign gets exactly one Generate Next 25 request during this run. It will not loop a campaign to completion.</Text>
             <View style={styles.confirmActions}>
-              <Pressable style={[styles.secondaryBtn, styles.confirmBtn]} onPress={() => setConfirmRunAllV1(false)}>
-                <Text style={styles.secondaryText}>Cancel</Text>
-              </Pressable>
-              <Pressable style={[styles.primaryBtn, styles.confirmBtn]} onPress={() => void runAllV1Once()}>
-                <Text style={styles.primaryText}>Run {v1Campaigns.length} in Order</Text>
-              </Pressable>
+              <Pressable style={[styles.secondaryBtn, styles.confirmBtn]} onPress={() => setConfirmRunAllV1(false)}><Text style={styles.secondaryText}>Cancel</Text></Pressable>
+              <Pressable style={[styles.primaryBtn, styles.confirmBtn]} onPress={() => void runAllV1Once()}><Text style={styles.primaryText}>Run {v1Campaigns.length} in Order</Text></Pressable>
+            </View>
+          </View>
+        </View>
+      )}
+
+      {confirmDeepCutFill && (
+        <View style={styles.editOverlay}>
+          <View style={styles.confirmCard}>
+            <Ionicons name="flash" size={44} color={colors.brandPrimary} />
+            <Text style={styles.sectionTitle}>FILL DEEPCUT BANK?</Text>
+            <Text style={styles.confirmText}>This run can generate up to {DEEPCUT_FILL_CAP} new DeepCut-difficulty drafts. The full V1 plan targets {DEEPCUT_FILL_TOTAL.toLocaleString()} questions across basketball, NFL, baseball, hockey, soccer, golf, and sports games. Generated questions remain drafts and still need review.</Text>
+            <View style={styles.confirmActions}>
+              <Pressable style={[styles.secondaryBtn, styles.confirmBtn]} onPress={() => setConfirmDeepCutFill(false)}><Text style={styles.secondaryText}>Cancel</Text></Pressable>
+              <Pressable style={[styles.primaryBtn, styles.confirmBtn]} onPress={() => void runDeepCutFill()}><Text style={styles.primaryText}>Generate Up To {DEEPCUT_FILL_CAP}</Text></Pressable>
             </View>
           </View>
         </View>
@@ -605,6 +653,8 @@ const styles = StyleSheet.create({
   secondaryText: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },
   empty: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: fontSize.base, textAlign: "center", paddingVertical: spacing.xl },
   formCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 2, borderColor: colors.ink, padding: spacing.lg, gap: spacing.md },
+  deepCutFillCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 3, borderColor: colors.brandPrimary, padding: spacing.lg, gap: spacing.md },
+  fillBtn: { minHeight: 54 },
   runAllCard: { backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 2, borderColor: colors.brandPrimary, padding: spacing.lg, gap: spacing.md },
   runAllBtn: { alignSelf: "stretch" },
   sectionTitle: { color: colors.onSurface, fontFamily: fonts.cartoon, fontSize: fontSize.xl, letterSpacing: 0.8 },
