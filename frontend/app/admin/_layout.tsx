@@ -17,9 +17,8 @@ export default function AdminLayout() {
     );
   }
 
-  if (!user) {
-    return <Redirect href={BETA_MODE ? "/beta-login" : "/login"} />;
-  }
+  if (!user) return <Redirect href={BETA_MODE ? "/beta-login" : "/login"} />;
+  if (user.credential_migration_required) return <Redirect href="/credential-migration" />;
 
   return (
     <Stack
