@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import { api, tokenStore } from "@/src/api/client";
 import { activateDeepCutCredentials } from "@/src/api/credentialMigration";
+import { registerAccount } from "@/src/api/registrationAccess";
 
 export type User = {
   user_id: string;
@@ -26,7 +27,7 @@ type AuthState = {
   loading: boolean;
   signingIn: boolean;
   signIn: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, username?: string) => Promise<void>;
+  register: (email: string, password: string, username?: string, invite?: string) => Promise<void>;
   migrateCredentials: (password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refresh: () => Promise<void>;
@@ -76,13 +77,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const register = useCallback(async (email: string, password: string, username?: string) => {
+  const register = useCallback(async (email: string, password: string, username?: string, invite?: string) => {
     setSigningIn(true);
     try {
-      const result = await api.register({
+      const result = await registerAccount({
         email: email.trim(),
         password,
         username: username?.trim() || undefined,
+        invite: invite?.trim() || undefined,
       });
       await tokenStore.set(result.session_token);
       setUser(result.user);

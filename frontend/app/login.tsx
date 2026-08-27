@@ -7,21 +7,33 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, { FadeInUp } from "react-native-reanimated";
 import { BETA_MODE } from "@/src/config/beta";
+import { getRegistrationStatus, RegistrationMode } from "@/src/api/registrationAccess";
 import { useAuth } from "@/src/context/AuthContext";
 import { useToast } from "@/src/components/Toast";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
 export default function Login() {
-  const { returnTo } = useLocalSearchParams<{ returnTo?: string }>();
+  const { returnTo, invite } = useLocalSearchParams<{ returnTo?: string; invite?: string }>();
   const { user, signIn, register, signingIn, loading } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const toast = useToast();
-  const [mode, setMode] = useState<"login" | "register">("login");
+  const [mode, setMode] = useState<"login" | "register">(invite ? "register" : "login");
+  const [registrationMode, setRegistrationMode] = useState<RegistrationMode>("invite");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [username, setUsername] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+
+  useEffect(() => {
+    void getRegistrationStatus()
+      .then((result) => setRegistrationMode(result.mode))
+      .catch(() => setRegistrationMode("invite"));
+  }, []);
+
+  useEffect(() => {
+    if (invite) setMode("register");
+  }, [invite]);
 
   useEffect(() => {
     if (!user) return;
@@ -29,6 +41,8 @@ export default function Login() {
     const destination = safeReturn || (BETA_MODE && !user.full_app_access ? "/beta" : "/(tabs)");
     router.replace(destination as any);
   }, [user, router, returnTo]);
+
+  const canRegister = registrationMode === "open" || (registrationMode === "invite" && !!invite);
 
   const onSubmit = async () => {
     const cleanEmail = email.trim();
@@ -40,13 +54,17 @@ export default function Login() {
       toast.show("Password must be at least 8 characters.", "error");
       return;
     }
+    if (mode === "register" && !canRegister) {
+      toast.show(registrationMode === "closed" ? "New signups are currently closed." : "A signup invite is required.", "error");
+      return;
+    }
     if (mode === "register" && username.trim() && username.trim().length < 3) {
       toast.show("Username must be at least 3 characters.", "error");
       return;
     }
 
     try {
-      if (mode === "register") await register(cleanEmail, password, username);
+      if (mode === "register") await register(cleanEmail, password, username, invite);
       else await signIn(cleanEmail, password);
     } catch (e: any) {
       toast.show(e?.detail || (mode === "register" ? "Couldn't create account." : "Sign in failed."), "error");
@@ -88,10 +106,21 @@ export default function Login() {
             <Pressable style={[styles.modeBtn, mode === "login" && styles.modeBtnActive]} onPress={() => setMode("login")}>
               <Text style={[styles.modeText, mode === "login" && styles.modeTextActive]}>Sign In</Text>
             </Pressable>
-            <Pressable style={[styles.modeBtn, mode === "register" && styles.modeBtnActive]} onPress={() => setMode("register")}>
-              <Text style={[styles.modeText, mode === "register" && styles.modeTextActive]}>Create Account</Text>
-            </Pressable>
+            {canRegister && (
+              <Pressable style={[styles.modeBtn, mode === "register" && styles.modeBtnActive]} onPress={() => setMode("register")}>
+                <Text style={[styles.modeText, mode === "register" && styles.modeTextActive]}>Create Account</Text>
+              </Pressable>
+            )}
           </View>
+
+          {!canRegister && mode === "login" && (
+            <View style={styles.accessNotice}>
+              <Ionicons name={registrationMode === "closed" ? "lock-closed" : "ticket-outline"} size={16} color={colors.gold} />
+              <Text style={styles.accessNoticeText}>
+                {registrationMode === "closed" ? "New account creation is currently closed." : "New accounts are invite-only right now."}
+              </Text>
+            </View>
+          )}
 
           {mode === "register" && (
             <TextInput
@@ -164,7 +193,7 @@ export default function Login() {
 
           <Text style={styles.terms}>
             {mode === "register"
-              ? "Create a DeepCut account to bank scores, ranks and achievements."
+              ? invite ? "Invite accepted. Create your DeepCut account." : "Create a DeepCut account to bank scores, ranks and achievements."
               : "Sign in to bank your scores and climb the ranks."}
           </Text>
         </Animated.View>
@@ -200,6 +229,8 @@ const styles = StyleSheet.create({
   modeBtnActive: { backgroundColor: colors.surfaceInverse },
   modeText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },
   modeTextActive: { color: colors.onSurfaceInverse },
+  accessNotice: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: spacing.sm, paddingVertical: spacing.xs },
+  accessNoticeText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },
   input: {
     height: 52,
     borderRadius: radius.md,

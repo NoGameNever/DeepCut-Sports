@@ -8,14 +8,12 @@ import { api } from "@/src/api/client";
 import { Sticker } from "@/src/components/Sticker";
 import { StickerButton, StickerMenuCard } from "@/src/components/StickerControls";
 import { useToast } from "@/src/components/Toast";
-import { useAuth } from "@/src/context/AuthContext";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
 export default function AdminPortal() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const toast = useToast();
-  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [forbidden, setForbidden] = useState(false);
   const [stats, setStats] = useState({ questions: 0, drafts: 0, users: 0, fullApp: 0 });
@@ -57,7 +55,7 @@ export default function AdminPortal() {
         <Ionicons name="lock-closed" size={48} color={colors.error} />
         <Text style={styles.title}>ADMIN ACCESS REQUIRED</Text>
         <Text style={styles.muted}>Your account is not listed in ADMIN_EMAILS or ADMIN_USER_IDS.</Text>
-        <StickerButton label="Back to App" icon="home" tone="dark" onPress={() => router.replace(user?.full_app_access ? "/(tabs)" : "/beta")} />
+        <StickerButton label="Back to App" icon="home" tone="dark" onPress={() => router.replace("/(tabs)")} />
       </View>
     );
   }
@@ -74,7 +72,7 @@ export default function AdminPortal() {
         <View>
           <Text style={styles.eyebrow}>DEEPCUT SPORTS</Text>
           <Text style={styles.title}>ADMIN PORTAL</Text>
-          <Text style={styles.subtitle}>Content, tester access, and the levers behind the curtain.</Text>
+          <Text style={styles.subtitle}>Content, signup access, and the levers behind the curtain.</Text>
         </View>
 
         <View style={styles.statsRow}>
@@ -107,8 +105,19 @@ export default function AdminPortal() {
             testID="admin-questions-link"
           />
           <StickerMenuCard
+            title="Registration"
+            description="Switch between invite-only, open signup, and closed registration. Create limited-use invite links."
+            icon="ticket"
+            iconFill={colors.gold}
+            fill={colors.surfaceSecondary}
+            badge="Cost Guard"
+            badgeFill={colors.cyan}
+            onPress={() => router.push("/admin/registration")}
+            testID="admin-registration-link"
+          />
+          <StickerMenuCard
             title="User Access"
-            description="Grant or revoke the complete app without changing admin privileges."
+            description="Review existing users and legacy full-app access flags."
             icon="key"
             iconFill={colors.success}
             fill={colors.surfaceSecondary}
@@ -122,17 +131,11 @@ export default function AdminPortal() {
         <Sticker fill={colors.surfaceSecondary} radius={radius.lg} contentStyle={styles.notice}>
           <Ionicons name="shield-checkmark" size={24} color={colors.success} />
           <Text style={styles.noticeText}>
-            Full-app access and admin access are separate permissions. The User Access screen cannot create another admin.
+            Registration controls affect new accounts only. Existing users can continue signing in regardless of signup mode.
           </Text>
         </Sticker>
 
-        <StickerButton
-          label="Back to App"
-          icon="home"
-          tone="dark"
-          fullWidth
-          onPress={() => router.replace(user?.full_app_access ? "/(tabs)" : "/beta")}
-        />
+        <StickerButton label="Back to App" icon="home" tone="dark" fullWidth onPress={() => router.replace("/(tabs)")} />
       </ScrollView>
     </View>
   );

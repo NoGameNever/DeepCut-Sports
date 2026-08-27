@@ -19,6 +19,8 @@ from fastapi import Header, HTTPException
 from pydantic import BaseModel, Field
 from pymongo.errors import DuplicateKeyError
 
+import registration_access
+
 
 SESSION_TTL = timedelta(days=30)
 ACTIVE = "active"
@@ -89,14 +91,14 @@ def credential_fields(user: dict[str, Any]) -> dict[str, Any]:
 
 
 async def issue_session(db, user_id: str) -> str:
-    now = utcnow()
+    stamp = utcnow()
     token = secrets.token_urlsafe(32)
     await db.user_sessions.insert_one(
         {
             "session_token": token,
             "user_id": user_id,
-            "expires_at": now + SESSION_TTL,
-            "created_at": now,
+            "expires_at": stamp + SESSION_TTL,
+            "created_at": stamp,
             "auth_provider": DEEPCUT_PROVIDER,
         }
     )
@@ -104,12 +106,7 @@ async def issue_session(db, user_id: str) -> str:
 
 
 async def migrate_all_user_metadata(db) -> dict[str, int]:
-    """Classify every existing account without inventing or replacing passwords.
-
-    Users that already have a password hash are marked active. Legacy users are marked
-    activation-required and keep their existing sessions so they can choose a password.
-    Email collisions are never merged automatically.
-    """
+    """Classify every existing account without inventing or replacing passwords."""
     counts = {
         "total": 0,
         "active": 0,
@@ -117,7 +114,7 @@ async def migrate_all_user_metadata(db) -> dict[str, int]:
         "email_conflict": 0,
         "missing_email": 0,
     }
-    now = utcnow()
+    stamp = utcnow()
     cursor = db.users.find(
         {},
         {
@@ -140,7 +137,7 @@ async def migrate_all_user_metadata(db) -> dict[str, int]:
         has_password = bool(user.get("password_hash"))
         provider = DEEPCUT_PROVIDER if has_password else LEGACY_PROVIDER
         updates: dict[str, Any] = {
-            "credential_migration_scanned_at": now,
+            "credential_migration_scanned_at": stamp,
             "credential_provider": provider,
             "auth_provider": provider,
         }
@@ -199,7 +196,7 @@ async def migrate_all_user_metadata(db) -> dict[str, int]:
                         "credential_status": EMAIL_CONFLICT,
                         "credential_migration_required": True,
                         "auth_provider": provider,
-                        "credential_migration_scanned_at": now,
+                        "credential_migration_scanned_at": stamp,
                     },
                 },
             )
@@ -259,7 +256,7 @@ def register_routes(
                 detail="This email is attached to more than one account. Contact DeepCut support.",
             )
 
-        now = utcnow()
+        stamp = utcnow()
         await db.users.update_one(
             {"user_id": user["user_id"]},
             {
@@ -271,14 +268,13 @@ def register_routes(
                     "credential_provider": DEEPCUT_PROVIDER,
                     "credential_status": ACTIVE,
                     "credential_migration_required": False,
-                    "password_migrated_at": now,
-                    "credential_activated_at": now,
-                    "updated_at": now,
+                    "password_migrated_at": stamp,
+                    "credential_activated_at": stamp,
+                    "updated_at": stamp,
                 }
             },
         )
 
-        # Replace every legacy or stale session with one first-party session.
         await db.user_sessions.delete_many({"user_id": user["user_id"]})
         token = await issue_session(db, str(user["user_id"]))
         fresh = await db.users.find_one({"user_id": user["user_id"]}, {"_id": 0})
@@ -293,6 +289,15 @@ def register_routes(
             "legacy_sign_in_enabled": False,
         }
 
+    registration_access.register_routes(
+        router,
+        db=db,
+        get_current_user=get_current_user,
+        user_out=user_out,
+        require_admin=require_admin,
+    )
+
 
 async def ensure_indexes(db) -> None:
     await db.users.create_index([("credential_status", 1), ("created_at", -1)])
+    await registration_access.ensure_indexes(db)
