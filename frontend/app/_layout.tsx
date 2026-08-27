@@ -16,6 +16,7 @@ import { colors } from "@/src/theme/theme";
 SplashScreen.preventAutoHideAsync();
 
 const RETIRED_ALPHA_ROUTES = new Set(["/beta", "/beta-login", "/beta-feedback"]);
+const CREDENTIAL_MIGRATION_ROUTES = new Set(["/credential-migration", "/reset-password"]);
 
 function AppNavigator() {
   const pathname = usePathname();
@@ -23,13 +24,27 @@ function AppNavigator() {
   const { user, loading } = useAuth();
 
   useEffect(() => {
-    if (BETA_MODE || loading || !RETIRED_ALPHA_ROUTES.has(pathname)) return;
-    router.replace(user ? "/(tabs)" : "/login");
+    if (loading) return;
+
+    if (user?.credential_migration_required) {
+      if (!CREDENTIAL_MIGRATION_ROUTES.has(pathname)) router.replace("/credential-migration");
+      return;
+    }
+
+    if (user && pathname === "/credential-migration") {
+      router.replace("/(tabs)");
+      return;
+    }
+
+    if (!BETA_MODE && RETIRED_ALPHA_ROUTES.has(pathname)) {
+      router.replace(user ? "/(tabs)" : "/login");
+    }
   }, [loading, pathname, router, user]);
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.surface } }}>
       <Stack.Screen name="quiz" options={{ gestureEnabled: false }} />
+      <Stack.Screen name="credential-migration" options={{ gestureEnabled: false }} />
     </Stack>
   );
 }

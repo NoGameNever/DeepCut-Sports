@@ -18,6 +18,7 @@ export default function TabsLayout() {
   }
 
   if (!user) return <Redirect href={BETA_MODE ? "/beta-login" : "/login"} />;
+  if (user.credential_migration_required) return <Redirect href="/credential-migration" />;
   if (BETA_MODE && !user.full_app_access) return <Redirect href="/beta" />;
 
   return (
@@ -27,30 +28,10 @@ export default function TabsLayout() {
         headerShown: false,
       }}
     >
-      <Tabs.Screen
-        name="index"
-        options={{
-          title: "Play",
-        }}
-      />
-      <Tabs.Screen
-        name="friends"
-        options={{
-          title: "Friends",
-        }}
-      />
-      <Tabs.Screen
-        name="leaderboard"
-        options={{
-          title: "Ranks",
-        }}
-      />
-      <Tabs.Screen
-        name="profile"
-        options={{
-          title: "Profile",
-        }}
-      />
+      <Tabs.Screen name="index" options={{ title: "Play" }} />
+      <Tabs.Screen name="friends" options={{ title: "Friends" }} />
+      <Tabs.Screen name="leaderboard" options={{ title: "Ranks" }} />
+      <Tabs.Screen name="profile" options={{ title: "Profile" }} />
     </Tabs>
   );
 }

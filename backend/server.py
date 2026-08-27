@@ -51,19 +51,21 @@ if not _EMERGENT_LLM_AVAILABLE:
 
 import auth_native
 import beta_release
+import credential_migration
 import question_bank
 import question_bank_v2
 import user_access
 
 
-# Add migration-era access flags to every auth/profile payload without changing
-# the large legacy module's response contract in place.
+# Add migration-era access and credential flags to every auth/profile payload
+# without changing the large legacy module's response contract in place.
 _legacy_user_out = _user_out
 
 
 def _user_out(user: dict) -> dict:
     output = _legacy_user_out(user)
     output.update(user_access.public_access_fields(user))
+    output.update(credential_migration.credential_fields(user))
     return output
 
 
@@ -190,6 +192,9 @@ async def _load_quiz_questions(*, body: QuizRequest, sport_keys: list[str], user
 
 
 _configure_cors()
+# New sign-ins are DeepCut-owned. Existing legacy sessions remain valid only long
+# enough for their owner to activate a DeepCut password.
+_remove_route("/api/auth/session", "POST")
 _remove_route("/api/quiz/generate", "POST")
 _remove_route("/api/lobbies/{lobby_id}/start", "POST")
 
@@ -416,6 +421,13 @@ auth_native.register_routes(
     ensure_username=_ensure_username,
     user_out=_user_out,
 )
+credential_migration.register_routes(
+    _admin_router,
+    db=db,
+    get_current_user=get_current_user,
+    user_out=_user_out,
+    require_admin=question_bank.require_admin,
+)
 beta_release.register_routes(
     _admin_router,
     db=db,
@@ -462,7 +474,9 @@ async def question_bank_startup():
     await question_bank_v2.ensure_indexes(db)
     await beta_release.ensure_indexes(db)
     await auth_native.ensure_indexes(db)
+    await credential_migration.ensure_indexes(db)
     await user_access.ensure_indexes(db)
     await user_access.ensure_bootstrap_access(db)
+    await credential_migration.migrate_all_user_metadata(db)
     await db.quiz_sessions.create_index("id", unique=True)
     await db.quiz_sessions.create_index("expires_at", expireAfterSeconds=0)
