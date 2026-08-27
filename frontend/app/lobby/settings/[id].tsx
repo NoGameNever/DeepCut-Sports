@@ -53,7 +53,20 @@ export default function LobbySettings() {
   const set = (key: string, value: any) => {
     if (readOnly) return;
     Haptics.selectionAsync();
-    setSettings((current: any) => ({ ...current, [key]: value }));
+    setSettings((current: any) => {
+      const next = { ...current, [key]: value };
+      if (key === "game_type") {
+        if (value === "lightning") {
+          next.timer_seconds = 10;
+          next.speed_bonus_enabled = true;
+        } else if (value === "streak") {
+          next.streak_bonus_enabled = true;
+        } else if (value === "deepcut") {
+          next.difficulty = "deepcut";
+        }
+      }
+      return next;
+    });
   };
 
   const toggleCat = (key: string) => {
@@ -80,7 +93,8 @@ export default function LobbySettings() {
     setError(null);
     setSaving(true);
     try {
-      await api.updateLobbySettings(id, settings);
+      const result = await api.updateLobbySettings(id, settings);
+      setSettings(result.settings);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       toast.show("Settings saved!", "success");
       router.back();
@@ -173,7 +187,7 @@ export default function LobbySettings() {
           <StickerIconButton
             icon="refresh"
             tone="gold"
-            onPress={() => setSettings({ ...DEFAULT_SETTINGS })}
+            onPress={() => setSettings({ ...DEFAULT_SETTINGS, selected_categories: [...DEFAULT_SETTINGS.selected_categories] })}
             testID="reset-defaults-button"
             accessibilityLabel="Reset settings"
           />
@@ -190,6 +204,9 @@ export default function LobbySettings() {
 
         <Text style={styles.group}>GAME MODE</Text>
         <Chips opts={GAME_TYPES} value={settings.game_type} onPick={(key) => set("game_type", key)} testPrefix="gametype" />
+        <Text style={styles.modeHint}>
+          Lightning locks the timer to 10 seconds and enables speed scoring. Streak locks combo scoring on. Deep Cut locks DeepCut difficulty.
+        </Text>
         <Text style={styles.sub}>Difficulty</Text>
         <Chips opts={DIFFICULTIES} value={settings.difficulty} onPick={(key) => set("difficulty", key)} testPrefix="difficulty" />
         <Text style={styles.sub}>Answer Format</Text>
@@ -227,9 +244,9 @@ export default function LobbySettings() {
 
         <Text style={styles.group}>LOBBY RULES</Text>
         <Stepper label="Max players" k="max_players" min={2} max={4} />
-        <Toggle label="Invite-only" k="invite_only" />
-        <Toggle label="Friends-only" k="friends_only" />
-        <Toggle label="Allow rematch" k="allow_rematch" />
+        <Text style={styles.modeHint}>
+          DeepCut lobbies are currently private and invite-based. Public visibility and friends-only discovery controls will return when public lobbies ship.
+        </Text>
 
         {error && (
           <View style={styles.errorBox} testID="settings-error">
@@ -266,6 +283,7 @@ const styles = StyleSheet.create({
   roText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: fontSize.base },
   group: { color: colors.brandPrimary, fontFamily: fonts.poster, fontSize: 18, letterSpacing: 0.5, marginTop: spacing.xl, marginBottom: spacing.md },
   sub: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm, letterSpacing: 0.5, marginTop: spacing.lg, marginBottom: spacing.sm },
+  modeHint: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: fontSize.sm, lineHeight: 19, marginTop: spacing.sm },
   chipWrap: { flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
   toggleRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", backgroundColor: colors.surfaceSecondary, borderRadius: radius.md, borderWidth: 2, borderColor: colors.ink, paddingVertical: spacing.md, paddingHorizontal: spacing.lg, marginTop: spacing.sm, gap: spacing.md },
   toggleLabel: { flex: 1, color: colors.onSurface, fontFamily: fonts.bodyMedium, fontSize: fontSize.lg },

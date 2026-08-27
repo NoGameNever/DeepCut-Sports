@@ -52,9 +52,16 @@ if not _EMERGENT_LLM_AVAILABLE:
 import auth_native
 import beta_release
 import credential_migration
+import match_settings
 import question_bank
 import question_bank_v2
 import user_access
+
+# Legacy lobby route functions resolve this helper from their module globals at
+# request time. Replace it once so create/edit/rematch/start all use the same
+# authoritative setting rules.
+_validate_settings = match_settings.validate_lobby_settings
+_legacy._validate_settings = _validate_settings
 
 
 # Add migration-era access and credential flags to every auth/profile payload
@@ -84,7 +91,6 @@ openai_client = (
 )
 
 QUIZ_SESSION_TTL = timedelta(hours=2)
-BASE_QUIZ_POINTS = 100
 QUIZ_DIFFICULTIES = set(DIFFICULTIES) | {"mixed"}
 
 
@@ -97,11 +103,23 @@ class PublicQuizQuestion(BaseModel):
     deep_cut: bool = False
 
 
+class QuizStartRequest(BaseModel):
+    sport: str
+    difficulty: str
+    era: str = "modern"
+    timer: str = "standard"
+    count: int = Field(default=7, ge=3, le=30)
+    sports: Optional[list[str]] = None
+
+
 class QuizStartResponse(BaseModel):
     session_id: str
     total: int
     question_index: int
     question: PublicQuizQuestion
+    timer_seconds: int
+    score_multiplier: float
+    points_per_correct: int
 
 
 class QuizAnswerRequest(BaseModel):
@@ -116,6 +134,9 @@ class QuizAnswerResponse(BaseModel):
     question_index: int
     total: int
     complete: bool
+    points_awarded: int
+    timed_out: bool
+    score_multiplier: float
     next_question: Optional[PublicQuizQuestion] = None
     progression: Optional[dict] = None
     user: Optional[dict] = None
@@ -174,21 +195,15 @@ def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
-async def _load_quiz_questions(*, body: QuizRequest, sport_keys: list[str], user_id: str) -> list[dict]:
-    count = max(3, min(body.count, 30))
-    if body.difficulty == "mixed":
-        return await beta_release.fetch_mixed_questions(
-            db,
-            sports=sport_keys,
-            count=count,
-            user_id=user_id,
-        )
-    query = question_bank.QuestionBankQuery(
+async def _load_quiz_questions(*, body, sport_keys: list[str], user_id: str) -> list[dict]:
+    query = match_settings.MatchQuestionQuery(
         sports=sport_keys,
         difficulty=body.difficulty,
-        count=count,
+        count=max(3, min(int(body.count), 30)),
+        era_filter=match_settings.quick_era_filter(body.era),
+        answer_format="multiple_choice",
     )
-    return await question_bank.fetch_approved_questions(db, query, user_id=user_id)
+    return await match_settings.fetch_match_questions(db, query, user_id=user_id)
 
 
 _configure_cors()
@@ -214,12 +229,8 @@ async def generate_quiz(body: QuizRequest, authorization: Optional[str] = Header
 
 
 @app.post("/api/v2/quiz/start", response_model=QuizStartResponse)
-async def start_quiz_session(body: QuizRequest, authorization: Optional[str] = Header(None)):
-    """Start a server-authoritative single-player quiz.
-
-    Correct answers are retained server-side. The client receives one public question
-    at a time and cannot calculate or submit its own final score.
-    """
+async def start_quiz_session(body: QuizStartRequest, authorization: Optional[str] = Header(None)):
+    """Start a server-authoritative, settings-aware single-player quiz."""
     user = await get_current_user(authorization)
     sport_keys = [s for s in (body.sports or [body.sport]) if s]
     valid_sports = set(question_bank.CATEGORY_ALIASES.values())
@@ -231,9 +242,8 @@ async def start_quiz_session(body: QuizRequest, authorization: Optional[str] = H
     ):
         raise HTTPException(status_code=400, detail="Invalid sport, difficulty or era")
 
+    score_config = match_settings.quick_score_config(body.timer, body.era)
     questions = await _load_quiz_questions(body=body, sport_keys=sport_keys, user_id=user["user_id"])
-    if len(questions) < 3:
-        raise HTTPException(status_code=503, detail="Not enough approved questions matched your filters")
 
     session_id = f"quiz_{uuid.uuid4().hex}"
     now = _now_utc()
@@ -244,8 +254,14 @@ async def start_quiz_session(body: QuizRequest, authorization: Optional[str] = H
         "sports": [question_bank.canonical_sport(s) for s in sport_keys],
         "difficulty": body.difficulty,
         "era": body.era,
+        "era_filter": score_config["era_filter"],
+        "timer": score_config["timer"],
+        "timer_seconds": score_config["timer_seconds"],
+        "score_multiplier": score_config["score_multiplier"],
+        "points_per_correct": score_config["points_per_correct"],
         "questions": questions,
         "current_index": 0,
+        "question_started_at": now,
         "score": 0,
         "correct_count": 0,
         "answers": [],
@@ -258,6 +274,9 @@ async def start_quiz_session(body: QuizRequest, authorization: Optional[str] = H
         total=len(questions),
         question_index=0,
         question=_public_question(questions[0]),
+        timer_seconds=int(score_config["timer_seconds"]),
+        score_multiplier=float(score_config["score_multiplier"]),
+        points_per_correct=int(score_config["points_per_correct"]),
     )
 
 
@@ -285,17 +304,33 @@ async def answer_quiz_session(
     if index >= len(questions):
         raise HTTPException(status_code=409, detail="Quiz session has no remaining questions")
 
+    now = _now_utc()
+    question_started_at = session.get("question_started_at")
+    if question_started_at and question_started_at.tzinfo is None:
+        question_started_at = question_started_at.replace(tzinfo=timezone.utc)
+    timer_seconds = int(session.get("timer_seconds", 15))
+    timed_out = bool(
+        question_started_at
+        and now > question_started_at + timedelta(seconds=timer_seconds + 3)
+    )
+    effective_selected_index = None if timed_out else body.selected_index
+
     question = questions[index]
     correct_index = int(question["correct_index"])
-    is_correct = body.selected_index == correct_index
-    score = int(session.get("score", 0)) + (BASE_QUIZ_POINTS if is_correct else 0)
+    is_correct = effective_selected_index == correct_index
+    points_per_correct = int(session.get("points_per_correct", match_settings.BASE_QUIZ_POINTS))
+    points_awarded = points_per_correct if is_correct else 0
+    score = int(session.get("score", 0)) + points_awarded
     correct_count = int(session.get("correct_count", 0)) + (1 if is_correct else 0)
     next_index = index + 1
     complete = next_index >= len(questions)
     answer_detail = {
         "question_id": question["id"],
-        "selected_index": body.selected_index,
+        "selected_index": effective_selected_index,
+        "submitted_index": body.selected_index,
         "correct": is_correct,
+        "timed_out": timed_out,
+        "points_awarded": points_awarded,
         "difficulty": question.get("difficulty") or session.get("difficulty"),
         "tags": list(question.get("tags") or []),
         "deep_cut": bool(question.get("deep_cut")),
@@ -304,10 +339,11 @@ async def answer_quiz_session(
     update = {
         "$set": {
             "current_index": next_index,
+            "question_started_at": None if complete else now,
             "score": score,
             "correct_count": correct_count,
             "status": "complete" if complete else "active",
-            "updated_at": _now_utc(),
+            "updated_at": now,
         },
         "$push": {"answers": answer_detail},
     }
@@ -361,6 +397,9 @@ async def answer_quiz_session(
         question_index=index,
         total=len(questions),
         complete=complete,
+        points_awarded=points_awarded,
+        timed_out=timed_out,
+        score_multiplier=float(session.get("score_multiplier", 1.0)),
         next_question=next_question,
         progression=progression,
         user=updated_user,
@@ -380,27 +419,22 @@ async def start_lobby(lobby_id: str, authorization: Optional[str] = Header(None)
 
     settings = _validate_settings({}, base=(lobby.get("settings") or DEFAULT_SETTINGS))
     difficulty = "deepcut" if settings["game_type"] == "deepcut" else settings["difficulty"]
-    query = question_bank.QuestionBankQuery(
+    query = match_settings.MatchQuestionQuery(
         sports=settings.get("selected_categories") or ["general"],
         difficulty=difficulty,
         count=max(3, min(int(settings.get("question_count", 10)), 50)),
         subcategories=settings.get("selected_subcategories") or [],
+        era_filter=settings.get("era_filter", "all"),
         answer_format=settings.get("answer_format", "multiple_choice"),
     )
 
     try:
-        questions = await question_bank.fetch_approved_questions(db, query, user_id=me["user_id"])
+        questions = await match_settings.fetch_match_questions(db, query, user_id=me["user_id"])
     except HTTPException:
         raise
-    except Exception as e:
-        logger.error(f"Lobby question-bank retrieval failed: {e}")
+    except Exception as exc:
+        logger.error("Lobby question-bank retrieval failed: %s", exc)
         raise HTTPException(status_code=502, detail="Couldn't load questions, try again")
-
-    if len(questions) < 3:
-        raise HTTPException(
-            status_code=503,
-            detail="Not enough approved questions matched your filters. Try broadening categories, era or difficulty.",
-        )
 
     settings["settings_locked"] = True
     await db.lobbies.update_one(

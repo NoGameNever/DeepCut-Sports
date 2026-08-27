@@ -6,6 +6,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import Animated, { FadeIn, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 import { api } from "@/src/api/client";
+import { startConfiguredQuiz } from "@/src/api/match";
 import { sportName, timerOption } from "@/src/constants/sports";
 import { useToast } from "@/src/components/Toast";
 import { UserAvatar } from "@/src/components/UserAvatar";
@@ -32,6 +33,9 @@ type QuizStartResponse = {
   total: number;
   question_index: number;
   question: PublicQ;
+  timer_seconds: number;
+  score_multiplier: number;
+  points_per_correct: number;
 };
 
 type QuizAnswerResponse = {
@@ -42,6 +46,9 @@ type QuizAnswerResponse = {
   question_index: number;
   total: number;
   complete: boolean;
+  points_awarded?: number;
+  timed_out?: boolean;
+  score_multiplier?: number;
   next_question?: PublicQ | null;
   progression?: any;
   user?: any;
@@ -60,15 +67,16 @@ export default function Quiz() {
   const [lobbySettings, setLobbySettings] = useState<any>(null);
   const [streak, setStreak] = useState(0);
   const [cfgTimer] = useState(timer || "standard");
+  const [singleTimerSeconds, setSingleTimerSeconds] = useState<number>(timerOption(cfgTimer).seconds);
   const lobbyTimer = lobbySettings?.timer_seconds ?? 15;
   const noTimer = isLobby && lobbyTimer === 0;
-  const perQuestionSeconds = isLobby ? (lobbyTimer > 0 ? lobbyTimer : 999) : timerOption(cfgTimer).seconds;
+  const perQuestionSeconds = isLobby ? (lobbyTimer > 0 ? lobbyTimer : 999) : singleTimerSeconds;
 
   const [questions, setQuestions] = useState<LobbyQ[] | null>(null);
   const [singleQuestion, setSingleQuestion] = useState<PublicQ | null>(null);
   const [singleSessionId, setSingleSessionId] = useState<string | null>(null);
   const [singleTotal, setSingleTotal] = useState(0);
-  const [error, setError] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [revealedCorrectIndex, setRevealedCorrectIndex] = useState<number | null>(null);
@@ -83,11 +91,12 @@ export default function Quiz() {
   const progress = useSharedValue(0);
 
   const load = useCallback(async () => {
-    setError(false);
+    setErrorMessage(null);
     setQuestions(null);
     setSingleQuestion(null);
     setSingleSessionId(null);
     setSingleTotal(0);
+    setSingleTimerSeconds(timerOption(cfgTimer).seconds);
     setCurrent(0);
     setScore(0);
     setCorrectCount(0);
@@ -103,19 +112,21 @@ export default function Quiz() {
         setSecondsLeft(secs > 0 ? secs : 999);
         setQuestions(g.questions);
       } else {
-        const started: QuizStartResponse = await api.startQuizSession({
+        const started: QuizStartResponse = await startConfiguredQuiz({
           sports: sports ? sports.split(",") : [sport],
           difficulty,
           era,
+          timer: cfgTimer,
           count: parseInt(count || "7", 10) || 7,
         });
         setSingleSessionId(started.session_id);
         setSingleTotal(started.total);
         setSingleQuestion(started.question);
-        setSecondsLeft(timerOption(cfgTimer).seconds);
+        setSingleTimerSeconds(started.timer_seconds);
+        setSecondsLeft(started.timer_seconds);
       }
-    } catch {
-      setError(true);
+    } catch (e: any) {
+      setErrorMessage(e?.detail || "Couldn't load questions for these match settings");
     }
   }, [sport, difficulty, era, lobbyId, sports, count, cfgTimer]);
 
@@ -274,14 +285,14 @@ export default function Quiz() {
           setSelected(null);
           setRevealedCorrectIndex(null);
           setLocked(false);
-          setSecondsLeft(timerOption(cfgTimer).seconds);
+          setSecondsLeft(singleTimerSeconds);
         }, 1100);
       } catch {
         setLocked(false);
         toast.show("Couldn't submit answer", "error");
       }
     },
-    [locked, singleSessionId, singleQuestion, difficulty, finishSinglePlayer, cfgTimer, toast]
+    [locked, singleSessionId, singleQuestion, difficulty, finishSinglePlayer, singleTimerSeconds, toast]
   );
 
   const handleAnswer = useCallback(
@@ -318,16 +329,16 @@ export default function Quiz() {
 
   const progressStyle = useAnimatedStyle(() => ({ width: `${progress.value * 100}%` }));
 
-  if (error) {
+  if (errorMessage) {
     return (
       <View style={styles.centered} testID="quiz-error">
         <Ionicons name="cloud-offline" size={48} color={colors.onSurfaceTertiary} />
-        <Text style={styles.centerText}>Couldn&apos;t load questions</Text>
+        <Text style={styles.centerText}>{errorMessage}</Text>
         <Pressable style={styles.retryBtn} onPress={load} testID="quiz-retry">
           <Text style={styles.retryText}>Retry</Text>
         </Pressable>
         <Pressable onPress={() => router.back()} style={{ marginTop: spacing.md }}>
-          <Text style={styles.quitText}>Go Back</Text>
+          <Text style={styles.quitText}>Change Match Settings</Text>
         </Pressable>
       </View>
     );
