@@ -53,6 +53,10 @@ export default function Login() {
     }
   };
 
+  const openPasswordReset = () => {
+    router.push({ pathname: "/forgot-password", params: returnTo ? { returnTo } : {} } as any);
+  };
+
   return (
     <KeyboardAvoidingView
       style={styles.container}
@@ -133,6 +137,13 @@ export default function Login() {
             </Pressable>
           </View>
 
+          {mode === "login" && (
+            <Pressable onPress={openPasswordReset} style={styles.forgotLink} testID="forgot-password-link">
+              <Ionicons name="key-outline" size={15} color={colors.brandPrimary} />
+              <Text style={styles.forgotText}>Forgot password?</Text>
+            </Pressable>
+          )}
+
           <View style={styles.submitShadow}>
             <Pressable
               testID="auth-submit-button"
@@ -211,6 +222,8 @@ const styles = StyleSheet.create({
   },
   passwordInput: { flex: 1, height: "100%", paddingHorizontal: spacing.md, color: colors.onSurface, fontFamily: fonts.body, fontSize: fontSize.base },
   eyeBtn: { width: 48, height: 48, alignItems: "center", justifyContent: "center" },
+  forgotLink: { alignSelf: "flex-end", flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: 2 },
+  forgotText: { color: colors.brandPrimary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },
   submitShadow: { backgroundColor: "#000000", borderRadius: radius.lg, marginTop: spacing.xs },
   submitBtn: {
     flexDirection: "row",

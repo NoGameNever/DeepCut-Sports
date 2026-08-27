@@ -202,6 +202,17 @@ export default function BetaLogin() {
             </Pressable>
           </View>
 
+          {mode === "login" && (
+            <Pressable
+              onPress={() => router.push("/forgot-password" as any)}
+              style={styles.forgotLink}
+              testID="beta-forgot-password-link"
+            >
+              <Ionicons name="key-outline" size={16} color={colors.brandPrimary} />
+              <Text style={styles.forgotText}>Forgot password?</Text>
+            </Pressable>
+          )}
+
           <StickerButton
             label={mode === "register" ? "Enter the Beta" : "Sign In"}
             icon={mode === "register" ? "ticket-outline" : "log-in-outline"}
@@ -216,7 +227,9 @@ export default function BetaLogin() {
           <View style={styles.notice}>
             <Ionicons name="information-circle-outline" size={18} color={colors.brandPrimary} />
             <Text style={styles.noticeText}>
-              Closed alpha build. Password recovery is not available yet, so use a password you can remember.
+              {mode === "login"
+                ? "Reset links are single-use and expire after 30 minutes."
+                : "Closed alpha build. Keep your invite access code private."}
             </Text>
           </View>
         </Sticker>
@@ -270,6 +283,8 @@ const styles = StyleSheet.create({
   },
   passwordInput: { flex: 1, minHeight: 50, paddingHorizontal: spacing.md, color: colors.onSurface, fontFamily: fonts.body, fontSize: fontSize.base },
   eyeButton: { width: 50, minHeight: 50, alignItems: "center", justifyContent: "center" },
+  forgotLink: { alignSelf: "flex-end", flexDirection: "row", alignItems: "center", gap: spacing.xs, paddingVertical: 2 },
+  forgotText: { color: colors.brandPrimary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm },
   notice: { flexDirection: "row", alignItems: "flex-start", gap: spacing.sm, paddingTop: spacing.xs },
   noticeText: { flex: 1, color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: fontSize.sm, lineHeight: 18 },
 });
