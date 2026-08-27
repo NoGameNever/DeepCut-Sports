@@ -1,0 +1,1 @@
+DeepCut V1 bank fill is orchestrated from the admin Questions campaign page using existing campaign APIs. Each run is capped at 500 generated drafts and targets 2,800 DeepCut-difficulty questions across seven sports.
