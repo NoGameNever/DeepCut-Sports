@@ -3,13 +3,14 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Literal
 from urllib.parse import quote
 
 from fastapi import Header, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 from pymongo import ReturnDocument
 
 import auth_native
@@ -41,7 +42,7 @@ class InviteBody(BaseModel):
 
 
 class ControlledRegisterRequest(BaseModel):
-    email: str
+    email: EmailStr
     password: str = Field(min_length=8, max_length=128)
     username: str | None = Field(default=None, min_length=3, max_length=20)
     invite: str | None = Field(default=None, max_length=512)
@@ -88,10 +89,36 @@ async def release_invite(db, invite: dict | None) -> None:
         )
 
 
+async def ensure_username(db, user_id: str, base: str) -> str:
+    clean = re.sub(r"[^a-zA-Z0-9_]", "", (base or "player").replace(" ", "")).lower()[:16] or "player"
+    if len(clean) < 3:
+        clean = (clean + "player")[:6]
+    candidate = clean
+    suffix = 0
+    while await db.users.find_one(
+        {"username": {"$regex": f"^{re.escape(candidate)}$", "$options": "i"}, "user_id": {"$ne": user_id}},
+        {"_id": 0, "user_id": 1},
+    ):
+        suffix += 1
+        candidate = f"{clean}{suffix}"
+    return candidate
+
+
 def signup_url(token: str) -> str:
     base = os.environ.get("APP_BASE_URL", "").strip().rstrip("/")
     path = f"/login?invite={quote(token)}"
     return f"{base}{path}" if base else path
+
+
+def _remove_native_register_route(router) -> None:
+    router.routes = [
+        route
+        for route in router.routes
+        if not (
+            getattr(route, "path", None) == "/auth/register"
+            and "POST" in getattr(route, "methods", set())
+        )
+    ]
 
 
 def register_routes(
@@ -99,10 +126,13 @@ def register_routes(
     *,
     db,
     get_current_user: Callable,
-    ensure_username: Callable,
     user_out: Callable,
     require_admin: Callable,
 ) -> None:
+    # auth_native is registered first. Replace only its public registration route;
+    # login, password reset, logout, and credential migration remain untouched.
+    _remove_native_register_route(router)
+
     @router.get("/registration/status")
     async def public_status():
         return {"mode": await get_mode(db)}
@@ -148,7 +178,7 @@ def register_routes(
                     "created_at": stamp,
                 }
             )
-            assigned = await ensure_username(user_id, username or email.split("@", 1)[0])
+            assigned = await ensure_username(db, user_id, username or email.split("@", 1)[0])
             await db.users.update_one({"user_id": user_id}, {"$set": {"username": assigned}})
         except Exception:
             await db.users.delete_one({"user_id": user_id})
