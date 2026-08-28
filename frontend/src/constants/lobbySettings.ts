@@ -26,7 +26,7 @@ export const CATEGORIES: Opt[] = [
   { key: "mlb", label: "MLB", icon: "baseball" },
   { key: "nhl", label: "NHL", icon: "hockey-puck" },
   { key: "soccer", label: "Soccer", icon: "soccer" },
-  { key: "golf", label: "Golf", icon: "golf" },
+  { key: "golf", label: "Men's PGA", icon: "golf" },
   { key: "videogames", label: "Sports Games", icon: "gamepad-variant" },
   { key: "general", label: "General", icon: "trophy" },
 ];
