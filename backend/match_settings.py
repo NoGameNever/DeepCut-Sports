@@ -12,8 +12,11 @@ from typing import Any, Optional
 from fastapi import HTTPException
 from pydantic import BaseModel, Field
 
+import golf_scope
 import question_bank
 
+
+golf_scope.install()
 
 BASE_QUIZ_POINTS = 100
 
@@ -286,7 +289,7 @@ def build_match_filter(
 
     match: dict[str, Any] = {
         "status": "approved",
-        "$or": [{"sport": {"$in": sports}}, {"category": {"$in": sports}}],
+        "$or": golf_scope.scoped_sport_branches(sports),
     }
 
     raw_difficulty = str(query.difficulty or "").strip().lower()

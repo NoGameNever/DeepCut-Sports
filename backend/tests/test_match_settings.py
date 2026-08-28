@@ -37,7 +37,10 @@ def test_match_filter_applies_alias_difficulty_and_era():
     )
     match = match_settings.build_match_filter(query, recent_ids={"q1"})
     assert match["status"] == "approved"
-    assert match["$or"][0]["sport"]["$in"] == ["basketball", "nfl"]
+    assert match["$or"] == [
+        {"$or": [{"sport": "basketball"}, {"category": "basketball"}]},
+        {"$or": [{"sport": "nfl"}, {"category": "nfl"}]},
+    ]
     assert match["difficulty"] == "medium"
     assert match["era"] == {"$in": ["2010s"]}
     assert match["id"] == {"$nin": ["q1"]}
@@ -52,7 +55,9 @@ def test_mixed_filter_does_not_pin_difficulty():
     )
     match = match_settings.build_match_filter(query)
     assert "difficulty" not in match
-    assert match["$or"][0]["sport"]["$in"] == ["baseball"]
+    assert match["$or"] == [
+        {"$or": [{"sport": "baseball"}, {"category": "baseball"}]}
+    ]
 
 
 def test_pre1990_filter_uses_historical_clause():
