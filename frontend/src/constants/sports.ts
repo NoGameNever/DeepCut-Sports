@@ -9,7 +9,7 @@ export const SPORTS: Sport[] = [
   { key: "basketball", name: "Basketball", icon: "basketball" },
   { key: "videogames", name: "Sports Video Games", icon: "gamepad-variant" },
   { key: "hockey", name: "Hockey", icon: "hockey-sticks" },
-  { key: "golf", name: "Golf", icon: "golf" },
+  { key: "golf", name: "Men's PGA Golf", icon: "golf" },
   { key: "nfl", name: "NFL", icon: "football" },
   { key: "baseball", name: "Baseball", icon: "baseball" },
 ];
