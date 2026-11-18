@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-native";
+import { Image } from "expo-image";
+import { arcadeArt, arcadeColors } from "@/src/theme/arcade";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -14,7 +16,6 @@ import { useAuth } from "@/src/context/AuthContext";
 import { setPendingProgression } from "@/src/state/progressionEvent";
 import { colors, fonts, fontSize, radius, spacing } from "@/src/theme/theme";
 
-const OPTION_FILLS = ["#FF9F1C", "#2EC4B6", "#9B5DE5", "#00B8FF"];
 const BASE_POINTS = 100;
 
 type PublicQ = {
@@ -357,15 +358,9 @@ export default function Quiz() {
   const urgent = secondsLeft <= 5;
   const correctIndex = isLobby ? (q as LobbyQ).correct_index : revealedCorrectIndex;
 
-  const optionFill = (i: number) => {
-    if (!locked) return OPTION_FILLS[i % OPTION_FILLS.length];
-    if (correctIndex !== null && i === correctIndex) return colors.success;
-    if (i === selected) return colors.error;
-    return colors.surfaceTertiary;
-  };
-
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.md }]} testID="quiz-screen">
+      <Image source={arcadeArt.gameplay} contentFit="cover" style={StyleSheet.absoluteFillObject} />
       <View style={styles.topRow}>
         <Pressable onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="close" size={24} color={colors.onSurface} />
@@ -404,18 +399,30 @@ export default function Quiz() {
       </Animated.View>
 
       <View style={styles.optionsWrap}>
-        {q.options.map((option, i) => (
-          <Pressable
-            key={`${q.id}-${i}`}
-            disabled={locked}
-            onPress={() => handleAnswer(i)}
-            style={[styles.optionBtn, { backgroundColor: optionFill(i) }]}
-            testID={`quiz-option-${i}`}
-          >
-            <Text style={styles.optionLetter}>{String.fromCharCode(65 + i)}</Text>
-            <Text style={styles.optionText}>{option}</Text>
-          </Pressable>
-        ))}
+        {q.options.map((option, i) => {
+          const correct = locked && i === correctIndex;
+          const incorrect = locked && i === selected && !correct;
+          const marker = correct ? "✓" : incorrect ? "✕" : String.fromCharCode(65 + i);
+          return (
+            <Pressable
+              key={`${q.id}-${i}`}
+              disabled={locked}
+              onPress={() => handleAnswer(i)}
+              accessibilityRole="button"
+              accessibilityLabel={correct ? `Correct answer: ${option}` : incorrect ? `Incorrect answer: ${option}` : option}
+              style={({ pressed }) => [
+                styles.optionBtn,
+                pressed && styles.optionPressed,
+                correct && styles.optionCorrect,
+                incorrect && styles.optionIncorrect,
+              ]}
+              testID={`quiz-option-${i}`}
+            >
+              <Text style={styles.optionLetter}>{marker}</Text>
+              <Text style={styles.optionText}>{option}</Text>
+            </Pressable>
+          );
+        })}
       </View>
     </View>
   );
@@ -431,24 +438,27 @@ const styles = StyleSheet.create({
   topRow: { flexDirection: "row", alignItems: "center", gap: spacing.md },
   iconBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center", borderRadius: 20, backgroundColor: colors.surfaceSecondary },
   progressTrack: { flex: 1, height: 10, borderRadius: radius.pill, backgroundColor: colors.surfaceTertiary, overflow: "hidden" },
-  progressBar: { height: "100%", backgroundColor: colors.brandPrimary, borderRadius: radius.pill },
+  progressBar: { height: "100%", backgroundColor: arcadeColors.gold, borderRadius: radius.pill },
   timerPill: { minWidth: 58, height: 40, borderRadius: radius.pill, backgroundColor: colors.surfaceSecondary, flexDirection: "row", gap: 5, alignItems: "center", justifyContent: "center" },
   timerUrgent: { backgroundColor: colors.surfaceTertiary },
   timerText: { color: colors.onSurfaceSecondary, fontFamily: fonts.displayBold },
   timerTextUrgent: { color: colors.error },
   metaRow: { marginTop: spacing.md, flexDirection: "row", justifyContent: "space-between" },
-  metaText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodySemiBold },
-  scoreText: { color: colors.brandPrimary, fontFamily: fonts.displayBold },
+  metaText: { color: "#FFF", fontFamily: fonts.bodySemiBold },
+  scoreText: { color: arcadeColors.gold, fontFamily: fonts.displayBold },
   liveRow: { marginTop: spacing.md, flexDirection: "row", gap: spacing.sm, flexWrap: "wrap" },
   liveChip: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 8, paddingVertical: 6, borderRadius: radius.md, backgroundColor: colors.surfaceSecondary, maxWidth: "48%" },
   liveName: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, maxWidth: 90 },
   liveScore: { color: colors.brandPrimary, fontFamily: fonts.displayBold },
-  questionCard: { marginTop: spacing.xl, backgroundColor: colors.surfaceSecondary, borderRadius: radius.lg, padding: spacing.xl, minHeight: 180, justifyContent: "center" },
+  questionCard: { marginTop: spacing.xl, backgroundColor: arcadeColors.panel, borderColor: arcadeColors.pink, borderWidth: 1, borderRadius: radius.lg, padding: spacing.xl, minHeight: 180, justifyContent: "center" },
   badge: { alignSelf: "flex-start", paddingHorizontal: spacing.md, paddingVertical: spacing.xs, borderRadius: radius.pill, backgroundColor: colors.brandTertiary },
   badgeText: { color: colors.onBrandTertiary, fontFamily: fonts.bodySemiBold, fontSize: fontSize.sm, letterSpacing: 0.8 },
   questionText: { color: colors.onSurface, fontFamily: fonts.bodySemiBold, fontSize: fontSize.xl, lineHeight: 32, marginTop: spacing.md },
   optionsWrap: { marginTop: spacing.xl, gap: spacing.md },
-  optionBtn: { minHeight: 72, borderRadius: radius.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.md },
+  optionBtn: { backgroundColor: arcadeColors.panel, borderColor: "#777780", borderWidth: 2, minHeight: 64, borderRadius: radius.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.md, flexDirection: "row", alignItems: "center", gap: spacing.md },
+  optionPressed: { borderColor: arcadeColors.cyan },
+  optionCorrect: { borderColor: arcadeColors.correct, backgroundColor: "#123322" },
+  optionIncorrect: { borderColor: arcadeColors.incorrect, backgroundColor: "#391C29" },
   optionLetter: { color: "#fff", fontFamily: fonts.displayBold, fontSize: fontSize.lg, width: 24 },
   optionText: { color: "#fff", fontFamily: fonts.bodySemiBold, fontSize: fontSize.base, flex: 1 },
 });

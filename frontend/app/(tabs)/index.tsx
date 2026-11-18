@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
+import { arcadeArt, arcadeColors } from "@/src/theme/arcade";
 import { useRouter } from "expo-router";
 import { useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -145,6 +147,7 @@ export default function Home() {
         <View style={styles.grid}>
           {SPORTS.map((sport, i) => {
             const fill = STICKER_FILLS[i % STICKER_FILLS.length];
+            const art = arcadeArt.sports[sport.key];
             return (
               <Animated.View key={sport.key} entering={FadeInDown.delay(i * 50)} style={styles.gridItem}>
                 <View style={styles.tileShadow}>
@@ -152,16 +155,25 @@ export default function Home() {
                     testID={`sport-card-${sport.key}`}
                     style={({ pressed }) => [
                       styles.card,
-                      { backgroundColor: fill },
+                      { backgroundColor: art ? arcadeColors.ink : fill },
                       pressed && styles.cardPressed,
                     ]}
+                    accessibilityRole="button"
                     onPress={() => openSheet(sport)}
                   >
-                    <View style={styles.iconBox}>
-                      <MaterialCommunityIcons name={sport.icon as any} size={26} color={fill} />
-                    </View>
-                    <Text style={styles.cardTitle} numberOfLines={2}>{sport.name}</Text>
-                    <Ionicons name="chevron-forward" size={18} color={INK} style={styles.cardArrow} />
+                    {art && (
+                      <>
+                        <Image source={art} style={StyleSheet.absoluteFillObject} contentFit="cover" />
+                        <LinearGradient colors={["transparent", "#08080CF5"]} style={StyleSheet.absoluteFillObject} />
+                      </>
+                    )}
+                    {!art && (
+                      <View style={styles.iconBox}>
+                        <MaterialCommunityIcons name={sport.icon as any} size={26} color={fill} />
+                      </View>
+                    )}
+                    <Text style={[styles.cardTitle, art ? styles.illustratedTitle : undefined]} numberOfLines={2}>{sport.name}</Text>
+                    <Ionicons name="chevron-forward" size={18} color={art ? "#FFF" : INK} style={styles.cardArrow} />
                   </Pressable>
                 </View>
               </Animated.View>
@@ -175,7 +187,11 @@ export default function Home() {
         index={-1}
         snapPoints={snapPoints}
         enablePanDownToClose
-        backgroundStyle={{ backgroundColor: colors.surfaceSecondary }}
+        backgroundComponent={({ style }) => (
+          <View style={[style, styles.sheetBackground]}>
+            <Image source={arcadeArt.setup} style={[StyleSheet.absoluteFillObject, styles.sheetArt]} contentFit="cover" />
+          </View>
+        )}
         handleIndicatorStyle={{ backgroundColor: colors.borderStrong }}
         backdropComponent={(props) => (
           <BottomSheetBackdrop {...props} appearsOnIndex={0} disappearsOnIndex={-1} opacity={0.6} />
@@ -303,7 +319,7 @@ export default function Home() {
               </View>
 
               <View style={styles.startShadow}>
-                <Pressable testID="start-match-button" style={styles.startBtn} onPress={startMatch}>
+                <Pressable testID="start-match-button" style={({ pressed }) => [styles.startBtn, pressed && styles.cardPressed]} onPress={startMatch}>
                   <Ionicons name="flash" size={22} color={INK} />
                   <Text style={styles.startText}>Start Match</Text>
                 </Pressable>
@@ -379,7 +395,8 @@ const styles = StyleSheet.create({
     borderColor: INK,
     padding: spacing.lg,
     height: 120,
-    justifyContent: "space-between",
+    overflow: "hidden",
+    justifyContent: "flex-end",
     transform: [{ translateX: -4 }, { translateY: -4 }],
   },
   cardPressed: { transform: [{ translateX: 0 }, { translateY: 0 }] },
@@ -392,6 +409,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   cardTitle: { color: INK, fontFamily: fonts.cartoon, fontSize: 19, letterSpacing: 0.8, lineHeight: 20 },
+  illustratedTitle: { color: "#FFF" },
+  sheetBackground: { backgroundColor: arcadeColors.ink, borderTopLeftRadius: radius.lg, borderTopRightRadius: radius.lg, overflow: "hidden" },
+  sheetArt: { opacity: 0.28 },
   cardArrow: { position: "absolute", top: spacing.lg, right: spacing.md },
   sheet: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm },
   sheetHeader: { flexDirection: "row", alignItems: "center", gap: spacing.md, marginBottom: spacing.xl },
@@ -435,7 +455,7 @@ const styles = StyleSheet.create({
   segmentItem: { flex: 1, paddingVertical: spacing.md, borderRadius: radius.sm, alignItems: "center", gap: 2 },
   segmentItemCol: { flex: 1, paddingVertical: spacing.md, borderRadius: radius.sm, alignItems: "center", gap: 2 },
   segMult: { color: colors.onSurfaceTertiary, fontFamily: fonts.bodyMedium, fontSize: 10 },
-  segMultActive: { color: colors.onBrandPrimary },
+  segMultActive: { color: INK },
   segHintSmall: { color: colors.onSurfaceTertiary, fontFamily: fonts.body, fontSize: 10 },
   multRow: {
     flexDirection: "row",
@@ -449,16 +469,16 @@ const styles = StyleSheet.create({
   },
   multText: { flex: 1, color: colors.onBrandTertiary, fontFamily: fonts.bodyMedium, fontSize: fontSize.base },
   multValue: { color: colors.brandPrimary, fontFamily: fonts.displayBold, fontSize: fontSize.xl },
-  segmentItemActive: { backgroundColor: colors.brandPrimary, borderWidth: 2, borderColor: INK },
+  segmentItemActive: { backgroundColor: arcadeColors.gold, borderWidth: 2, borderColor: INK },
   segmentText: { color: colors.onSurfaceSecondary, fontFamily: fonts.bodyMedium, fontSize: fontSize.base },
-  segmentTextActive: { color: colors.onBrandPrimary, fontFamily: fonts.bodySemiBold },
+  segmentTextActive: { color: INK, fontFamily: fonts.bodySemiBold },
   startShadow: { backgroundColor: INK, borderRadius: radius.lg },
   startBtn: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     gap: spacing.sm,
-    backgroundColor: colors.gold,
+    backgroundColor: arcadeColors.gold,
     height: 56,
     borderRadius: radius.lg,
     borderWidth: 3,
