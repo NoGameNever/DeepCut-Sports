@@ -1,3 +1,4 @@
+import { ArcadeBackdrop } from "@/src/components/ArcadeBackdrop";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Share, Platform,
@@ -161,6 +162,7 @@ export default function LobbyRoom() {
 
   return (
     <View style={styles.container} testID="lobby-screen">
+      <ArcadeBackdrop intensity={0.38} />
       <View style={[styles.header, { paddingTop: insets.top + spacing.sm }]}>
         <Pressable onPress={leave} style={styles.backBtn} testID="lobby-leave">
           <Ionicons name={isHost ? "close" : "exit-outline"} size={20} color={colors.onSurface} />

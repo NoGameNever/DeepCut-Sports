@@ -1,3 +1,4 @@
+import { ArcadeBackdrop } from "@/src/components/ArcadeBackdrop";
 import { useState } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { Image } from "expo-image";
@@ -40,6 +41,7 @@ export default function CreateLobby() {
 
   return (
     <View style={styles.container} testID="create-lobby-screen">
+      <ArcadeBackdrop />
       <Stack.Screen options={{ headerShown: false }} />
       <Image source={HERO} style={styles.hero} contentFit="cover" contentPosition="top" />
       <LinearGradient colors={["rgba(10,10,10,0.4)", "rgba(10,10,10,0.85)", colors.surface]} locations={[0, 0.6, 1]} style={StyleSheet.absoluteFill} />

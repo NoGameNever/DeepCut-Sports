@@ -1,7 +1,7 @@
+import { ArcadeBackdrop } from "@/src/components/ArcadeBackdrop";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-native";
-import { Image } from "expo-image";
-import { arcadeArt, arcadeColors } from "@/src/theme/arcade";
+import { arcadeColors } from "@/src/theme/arcade";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -360,7 +360,7 @@ export default function Quiz() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.md }]} testID="quiz-screen">
-      <Image source={arcadeArt.gameplay} contentFit="cover" style={StyleSheet.absoluteFillObject} />
+      <ArcadeBackdrop scene="gameplay" intensity={0.7} />
       <View style={styles.topRow}>
         <Pressable onPress={() => router.back()} style={styles.iconBtn}>
           <Ionicons name="close" size={24} color={colors.onSurface} />

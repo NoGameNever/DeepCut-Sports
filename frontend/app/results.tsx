@@ -1,3 +1,4 @@
+import { ArcadeBackdrop } from "@/src/components/ArcadeBackdrop";
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -87,6 +88,7 @@ export default function Results() {
 
   return (
     <View style={[styles.container, { paddingTop: insets.top + spacing.xxl, paddingBottom: insets.bottom + spacing.xl }]} testID="results-screen">
+      <ArcadeBackdrop scene="gameplay" />
       <View style={styles.top}>
         <Animated.View entering={ZoomIn.duration(400)} style={[styles.trophy, { backgroundColor: good ? colors.brandTertiary : colors.surfaceSecondary }]}>
           <Ionicons name={perfect ? "trophy" : good ? "ribbon" : "flag"} size={44} color={good ? colors.brandPrimary : colors.onSurfaceSecondary} />

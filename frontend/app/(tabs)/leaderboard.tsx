@@ -1,3 +1,4 @@
+import { ArcadeBackdrop } from "@/src/components/ArcadeBackdrop";
 import { useCallback, useEffect, useState } from "react";
 import { View, Text, StyleSheet, FlatList, RefreshControl, ActivityIndicator, Pressable } from "react-native";
 import { Image } from "expo-image";
@@ -86,6 +87,7 @@ export default function Leaderboard() {
 
   return (
     <View style={styles.container} testID="leaderboard-screen">
+      <ArcadeBackdrop intensity={0.36} />
       <View style={{ paddingTop: insets.top }}>
         <View style={styles.headerWrap}>
           <Image source={{ uri: PODIUM_BG }} style={StyleSheet.absoluteFill} contentFit="cover" />

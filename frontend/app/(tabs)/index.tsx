@@ -1,3 +1,4 @@
+import { ArcadeBackdrop } from "@/src/components/ArcadeBackdrop";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import { Image } from "expo-image";
@@ -90,6 +91,7 @@ export default function Home() {
 
   return (
     <View style={styles.container} testID="home-screen">
+      <ArcadeBackdrop />
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
         <View style={styles.brandRow}>
           <Text style={styles.wordmark}>DeepCut Sports</Text>

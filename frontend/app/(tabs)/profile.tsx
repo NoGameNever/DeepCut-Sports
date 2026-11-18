@@ -1,7 +1,7 @@
+import { ArcadeBackdrop } from "@/src/components/ArcadeBackdrop";
 import { useCallback, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ScrollView } from "react-native";
 import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
@@ -12,7 +12,6 @@ import { tierColor, rarityColor } from "@/src/constants/progression";
 import { sportName, sportIcon } from "@/src/constants/sports";
 import { colors, fonts, fontSize, radius, spacing, stickerFills } from "@/src/theme/theme";
 
-const COVER = "https://images.unsplash.com/photo-1509486432407-f8fb9cc99acd";
 
 export default function Profile() {
   const { user, signOut, refresh } = useAuth();
@@ -44,170 +43,171 @@ export default function Profile() {
   ];
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false} testID="profile-screen">
-      <View style={styles.coverWrap}>
-        <Image source={{ uri: COVER }} style={StyleSheet.absoluteFill} contentFit="cover" />
-        <LinearGradient colors={["rgba(15,17,21,0.3)", colors.surface]} style={StyleSheet.absoluteFill} />
-        <View style={{ height: insets.top }} />
-      </View>
-
-      <View style={styles.avatarWrap}>
-        {user?.picture ? (
-          <Image source={{ uri: user.picture }} style={styles.avatar} />
-        ) : (
-          <View style={[styles.avatar, styles.avatarFallback]}>
-            <Text style={styles.avatarText}>{initial}</Text>
-          </View>
-        )}
-        <Text style={styles.name}>{user?.name || "Player"}</Text>
-        {user?.username ? <Text style={styles.username}>@{user.username}</Text> : null}
-        {user?.tagline ? <Text style={styles.tagline}>&ldquo;{user.tagline}&rdquo;</Text> : <Text style={styles.email}>{user?.email}</Text>}
-        <Pressable testID="edit-profile-button" style={styles.editBtn} onPress={() => router.push("/profile/edit")}>
-          <Ionicons name="create-outline" size={16} color={colors.ink} />
-          <Text style={styles.editText}>Edit Profile</Text>
-        </Pressable>
-      </View>
-
-      {prog && (
-        <>
-          {/* ---- Level card ---- */}
-          <View style={styles.section}>
-            <View style={styles.levelCard} testID="profile-level-card">
-              <View style={styles.levelHead}>
-                <View style={styles.levelBubble}>
-                  <Text style={styles.levelNum}>{prog.level}</Text>
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.levelLabel}>PLAYER LEVEL</Text>
-                  <Text style={styles.levelXpLine}>
-                    {prog.current_level_xp}/{prog.level_span} XP · {prog.xp_to_next_level} to Lv {prog.level + 1}
-                  </Text>
-                </View>
-              </View>
-              <XPBar progress={prog.level_progress} color={colors.gold} />
-              <View style={styles.levelChips}>
-                <View style={styles.chip}>
-                  <Text style={styles.chipValue}>{prog.lifetime_xp.toLocaleString()}</Text>
-                  <Text style={styles.chipLabel}>LIFETIME XP</Text>
-                </View>
-                <View style={styles.chip}>
-                  <Text style={styles.chipValue}>{prog.weekly_xp.toLocaleString()}</Text>
-                  <Text style={styles.chipLabel}>THIS WEEK</Text>
-                </View>
-              </View>
-            </View>
-          </View>
-
-          {/* ---- Rank tier card ---- */}
-          <View style={styles.section}>
-            <View style={[styles.tierCard, { borderColor: tierColor(prog.tier.key) }]} testID="profile-rank-card">
-              <View style={styles.tierHead}>
-                <Text style={styles.tierIcon}>{prog.tier.icon}</Text>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.tierName, { color: tierColor(prog.tier.key) }]}>{prog.tier.name}</Text>
-                  <Text style={styles.tierTagline}>&ldquo;{prog.tier.tagline}&rdquo;</Text>
-                </View>
-              </View>
-              <XPBar progress={prog.tier_progress} color={tierColor(prog.tier.key)} />
-              <Text style={styles.tierNext}>
-                {prog.next_tier
-                  ? `${(prog.next_tier.min_xp - prog.lifetime_xp).toLocaleString()} XP to ${prog.next_tier.icon} ${prog.next_tier.name}`
-                  : "Maximum rank achieved. Touch grass? Never."}
-              </Text>
-            </View>
-          </View>
-        </>
-      )}
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>CAREER STATS</Text>
-        <View style={styles.statGrid}>
-          {stats.map((s, i) => (
-            <View key={s.label} style={[styles.statCard, { backgroundColor: stickerFills[i % stickerFills.length] }]} testID={`profile-stat-${s.label}`}>
-              <MaterialCommunityIcons name={s.icon as any} size={20} color={colors.ink} />
-              <Text style={styles.statValue}>{s.value}</Text>
-              <Text style={styles.statLabel}>{s.label}</Text>
-            </View>
-          ))}
+    <View style={styles.container}>
+      <ArcadeBackdrop intensity={0.42} />
+      <ScrollView contentContainerStyle={{ paddingBottom: 120 }} showsVerticalScrollIndicator={false} testID="profile-screen">
+        <View style={styles.coverWrap}>
+          <View style={{ height: insets.top }} />
         </View>
 
-        {user?.best_sport && (
-          <View style={styles.bestSport}>
-            <View style={styles.bestIcon}>
-              <MaterialCommunityIcons name={sportIcon(user.best_sport) as any} size={22} color={colors.brandPrimary} />
+        <View style={styles.avatarWrap}>
+          {user?.picture ? (
+            <Image source={{ uri: user.picture }} style={styles.avatar} />
+          ) : (
+            <View style={[styles.avatar, styles.avatarFallback]}>
+              <Text style={styles.avatarText}>{initial}</Text>
             </View>
-            <View>
-              <Text style={styles.bestLabel}>BEST CATEGORY</Text>
-              <Text style={styles.bestValue}>{sportName(user.best_sport)}</Text>
-            </View>
-          </View>
-        )}
-      </View>
+          )}
+          <Text style={styles.name}>{user?.name || "Player"}</Text>
+          {user?.username ? <Text style={styles.username}>@{user.username}</Text> : null}
+          {user?.tagline ? <Text style={styles.tagline}>&ldquo;{user.tagline}&rdquo;</Text> : <Text style={styles.email}>{user?.email}</Text>}
+          <Pressable testID="edit-profile-button" style={styles.editBtn} onPress={() => router.push("/profile/edit")}>
+            <Ionicons name="create-outline" size={16} color={colors.ink} />
+            <Text style={styles.editText}>Edit Profile</Text>
+          </Pressable>
+        </View>
 
-      {prog && (
-        <>
-          {/* ---- Level rewards ---- */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>LEVEL REWARDS</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
-              {prog.level_rewards.map((r: any) => (
-                <View key={r.id} style={[styles.rewardCard, !r.unlocked && { opacity: 0.45 }]} testID={`profile-reward-${r.id}`}>
-                  <Text style={styles.rewardIcon}>{r.unlocked ? r.icon : "🔒"}</Text>
-                  <Text style={styles.rewardLevel}>LV {r.level}</Text>
-                  <Text style={styles.rewardName} numberOfLines={2}>{r.name}</Text>
-                </View>
-              ))}
-            </ScrollView>
-          </View>
-
-          {/* ---- Achievements ---- */}
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              ACHIEVEMENTS ({prog.achievements.filter((a: any) => a.unlocked).length}/{prog.achievements.length})
-            </Text>
-            {prog.achievements.map((a: any) => (
-              <View
-                key={a.id}
-                style={[styles.achCard, a.unlocked && { borderColor: rarityColor(a.rarity), borderWidth: 1 }]}
-                testID={`profile-achievement-${a.id}`}
-              >
-                <Text style={[styles.achIcon, !a.unlocked && { opacity: 0.5 }]}>{a.icon}</Text>
-                <View style={{ flex: 1 }}>
-                  <View style={styles.achNameRow}>
-                    <Text style={styles.achName}>{a.name}</Text>
-                    <View style={[styles.rarityPill, { backgroundColor: rarityColor(a.rarity) }]}>
-                      <Text style={styles.rarityText}>{a.rarity.toUpperCase()}</Text>
-                    </View>
+        {prog && (
+          <>
+            {/* ---- Level card ---- */}
+            <View style={styles.section}>
+              <View style={styles.levelCard} testID="profile-level-card">
+                <View style={styles.levelHead}>
+                  <View style={styles.levelBubble}>
+                    <Text style={styles.levelNum}>{prog.level}</Text>
                   </View>
-                  <Text style={styles.achDesc} numberOfLines={2}>{a.description}</Text>
-                  {a.unlocked ? (
-                    <Text style={[styles.achStatus, { color: rarityColor(a.rarity) }]}>Unlocked · +{a.reward_xp} XP earned</Text>
-                  ) : a.coming_soon ? (
-                    <Text style={styles.achStatus}>Coming soon · +{a.reward_xp} XP</Text>
-                  ) : (
-                    <View style={{ marginTop: spacing.xs }}>
-                      <XPBar progress={a.progress} height={5} color={rarityColor(a.rarity)} />
-                      <Text style={styles.achProgress}>
-                        {a.current.toLocaleString()}/{a.target.toLocaleString()} · +{a.reward_xp} XP
-                      </Text>
-                    </View>
-                  )}
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.levelLabel}>PLAYER LEVEL</Text>
+                    <Text style={styles.levelXpLine}>
+                      {prog.current_level_xp}/{prog.level_span} XP · {prog.xp_to_next_level} to Lv {prog.level + 1}
+                    </Text>
+                  </View>
                 </View>
+                <XPBar progress={prog.level_progress} color={colors.gold} />
+                <View style={styles.levelChips}>
+                  <View style={styles.chip}>
+                    <Text style={styles.chipValue}>{prog.lifetime_xp.toLocaleString()}</Text>
+                    <Text style={styles.chipLabel}>LIFETIME XP</Text>
+                  </View>
+                  <View style={styles.chip}>
+                    <Text style={styles.chipValue}>{prog.weekly_xp.toLocaleString()}</Text>
+                    <Text style={styles.chipLabel}>THIS WEEK</Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
+            {/* ---- Rank tier card ---- */}
+            <View style={styles.section}>
+              <View style={[styles.tierCard, { borderColor: tierColor(prog.tier.key) }]} testID="profile-rank-card">
+                <View style={styles.tierHead}>
+                  <Text style={styles.tierIcon}>{prog.tier.icon}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.tierName, { color: tierColor(prog.tier.key) }]}>{prog.tier.name}</Text>
+                    <Text style={styles.tierTagline}>&ldquo;{prog.tier.tagline}&rdquo;</Text>
+                  </View>
+                </View>
+                <XPBar progress={prog.tier_progress} color={tierColor(prog.tier.key)} />
+                <Text style={styles.tierNext}>
+                  {prog.next_tier
+                    ? `${(prog.next_tier.min_xp - prog.lifetime_xp).toLocaleString()} XP to ${prog.next_tier.icon} ${prog.next_tier.name}`
+                    : "Maximum rank achieved. Touch grass? Never."}
+                </Text>
+              </View>
+            </View>
+          </>
+        )}
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>CAREER STATS</Text>
+          <View style={styles.statGrid}>
+            {stats.map((s, i) => (
+              <View key={s.label} style={[styles.statCard, { backgroundColor: stickerFills[i % stickerFills.length] }]} testID={`profile-stat-${s.label}`}>
+                <MaterialCommunityIcons name={s.icon as any} size={20} color={colors.ink} />
+                <Text style={styles.statValue}>{s.value}</Text>
+                <Text style={styles.statLabel}>{s.label}</Text>
               </View>
             ))}
           </View>
-        </>
-      )}
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>SETTINGS</Text>
-        <Pressable testID="logout-button" style={styles.settingRow} onPress={onSignOut}>
-          <Ionicons name="log-out-outline" size={22} color={colors.error} />
-          <Text style={[styles.settingText, { color: colors.error }]}>Log Out</Text>
-          <Ionicons name="chevron-forward" size={18} color={colors.onSurfaceTertiary} />
-        </Pressable>
-      </View>
-    </ScrollView>
+          {user?.best_sport && (
+            <View style={styles.bestSport}>
+              <View style={styles.bestIcon}>
+                <MaterialCommunityIcons name={sportIcon(user.best_sport) as any} size={22} color={colors.brandPrimary} />
+              </View>
+              <View>
+                <Text style={styles.bestLabel}>BEST CATEGORY</Text>
+                <Text style={styles.bestValue}>{sportName(user.best_sport)}</Text>
+              </View>
+            </View>
+          )}
+        </View>
+
+        {prog && (
+          <>
+            {/* ---- Level rewards ---- */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>LEVEL REWARDS</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm }}>
+                {prog.level_rewards.map((r: any) => (
+                  <View key={r.id} style={[styles.rewardCard, !r.unlocked && { opacity: 0.45 }]} testID={`profile-reward-${r.id}`}>
+                    <Text style={styles.rewardIcon}>{r.unlocked ? r.icon : "🔒"}</Text>
+                    <Text style={styles.rewardLevel}>LV {r.level}</Text>
+                    <Text style={styles.rewardName} numberOfLines={2}>{r.name}</Text>
+                  </View>
+                ))}
+              </ScrollView>
+            </View>
+
+            {/* ---- Achievements ---- */}
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                ACHIEVEMENTS ({prog.achievements.filter((a: any) => a.unlocked).length}/{prog.achievements.length})
+              </Text>
+              {prog.achievements.map((a: any) => (
+                <View
+                  key={a.id}
+                  style={[styles.achCard, a.unlocked && { borderColor: rarityColor(a.rarity), borderWidth: 1 }]}
+                  testID={`profile-achievement-${a.id}`}
+                >
+                  <Text style={[styles.achIcon, !a.unlocked && { opacity: 0.5 }]}>{a.icon}</Text>
+                  <View style={{ flex: 1 }}>
+                    <View style={styles.achNameRow}>
+                      <Text style={styles.achName}>{a.name}</Text>
+                      <View style={[styles.rarityPill, { backgroundColor: rarityColor(a.rarity) }]}>
+                        <Text style={styles.rarityText}>{a.rarity.toUpperCase()}</Text>
+                      </View>
+                    </View>
+                    <Text style={styles.achDesc} numberOfLines={2}>{a.description}</Text>
+                    {a.unlocked ? (
+                      <Text style={[styles.achStatus, { color: rarityColor(a.rarity) }]}>Unlocked · +{a.reward_xp} XP earned</Text>
+                    ) : a.coming_soon ? (
+                      <Text style={styles.achStatus}>Coming soon · +{a.reward_xp} XP</Text>
+                    ) : (
+                      <View style={{ marginTop: spacing.xs }}>
+                        <XPBar progress={a.progress} height={5} color={rarityColor(a.rarity)} />
+                        <Text style={styles.achProgress}>
+                          {a.current.toLocaleString()}/{a.target.toLocaleString()} · +{a.reward_xp} XP
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>SETTINGS</Text>
+          <Pressable testID="logout-button" style={styles.settingRow} onPress={onSignOut}>
+            <Ionicons name="log-out-outline" size={22} color={colors.error} />
+            <Text style={[styles.settingText, { color: colors.error }]}>Log Out</Text>
+            <Ionicons name="chevron-forward" size={18} color={colors.onSurfaceTertiary} />
+          </Pressable>
+        </View>
+      </ScrollView>
+    </View>
   );
 }
 

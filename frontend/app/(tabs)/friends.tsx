@@ -1,3 +1,4 @@
+import { ArcadeBackdrop } from "@/src/components/ArcadeBackdrop";
 import { useCallback, useRef, useState } from "react";
 import {
   View, Text, StyleSheet, Pressable, ScrollView, TextInput, ActivityIndicator, RefreshControl,
@@ -107,6 +108,7 @@ export default function Friends() {
 
   return (
     <View style={styles.container} testID="friends-screen">
+      <ArcadeBackdrop intensity={0.38} />
       <View style={[styles.header, { paddingTop: insets.top + spacing.md }]}>
         <Text style={styles.title}>SQUAD</Text>
         <View style={styles.searchBar}>

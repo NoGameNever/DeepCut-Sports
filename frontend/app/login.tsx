@@ -1,3 +1,4 @@
+import { ArcadeBackdrop } from "@/src/components/ArcadeBackdrop";
 import { useEffect, useState } from "react";
 import { View, Text, StyleSheet, Pressable, ActivityIndicator, TextInput, KeyboardAvoidingView, Platform } from "react-native";
 import { Image } from "expo-image";
@@ -81,6 +82,7 @@ export default function Login() {
       behavior={Platform.OS === "ios" ? "padding" : undefined}
       testID="login-screen"
     >
+      <ArcadeBackdrop intensity={0.6} />
       <Image
         source={require("../assets/images/deepcut_hero.png")}
         style={styles.hero}
@@ -88,7 +90,7 @@ export default function Login() {
         contentPosition="top"
       />
       <LinearGradient
-        colors={["transparent", "rgba(11,13,15,0.72)", colors.surface]}
+        colors={["transparent", "rgba(10,10,10,0.38)", "rgba(10,10,10,0.22)"]}
         locations={[0, 0.48, 0.78]}
         style={StyleSheet.absoluteFill}
         pointerEvents="none"
